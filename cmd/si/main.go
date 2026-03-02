@@ -8,6 +8,7 @@ import (
 
 	si "github.com/kayushkin/si"
 	"github.com/kayushkin/si/adapter/discord"
+	"github.com/kayushkin/si/adapter/openclaw"
 	"github.com/kayushkin/si/adapter/tui"
 	"github.com/kayushkin/si/adapter/websocket"
 	"github.com/kayushkin/si/feed"
@@ -58,6 +59,16 @@ func main() {
 		}
 		discordAdapter := discord.New(token, channelID)
 		router.AddAdapter(discordAdapter)
+	}
+
+	// OpenClaw adapter (if token provided)
+	if token := os.Getenv("SI_OPENCLAW_TOKEN"); token != "" {
+		url := os.Getenv("SI_OPENCLAW_URL")
+		if url == "" {
+			url = "ws://localhost:18789"
+		}
+		openclawAdapter := openclaw.New(url, token)
+		router.AddAdapter(openclawAdapter)
 	}
 
 	log.Println("[sí] starting...")
