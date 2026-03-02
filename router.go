@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 )
 
@@ -94,7 +95,8 @@ func (r *Router) Run(ctx context.Context) error {
 				r.mu.RLock()
 				for _, a := range r.adapters {
 					// Route to the originating adapter, or broadcast if no channel specified
-					if msg.Channel == "" || msg.Channel == a.Name() {
+					// Channel format: "adaptername" or "adaptername:details"
+					if msg.Channel == "" || msg.Channel == a.Name() || strings.HasPrefix(msg.Channel, a.Name()+":") {
 						if err := a.Send(msg); err != nil {
 							log.Printf("[router] send to %s failed: %v", a.Name(), err)
 						}

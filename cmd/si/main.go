@@ -17,8 +17,23 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	// Echo feed for testing (replace with real inber feed later)
-	f := feed.NewEcho()
+	// Determine feed mode
+	useEcho := os.Getenv("SI_ECHO") == "1"
+
+	var f si.Feed
+	if useEcho {
+		log.Println("[sí] using echo feed (test mode)")
+		f = feed.NewEcho()
+	} else {
+		// API feed — inber connects via WebSocket
+		apiAddr := os.Getenv("SI_API_ADDR")
+		if apiAddr == "" {
+			apiAddr = ":8091"
+		}
+		apiFeed := feed.NewAPI(apiAddr)
+		go apiFeed.Start(ctx)
+		f = apiFeed
+	}
 
 	// Router
 	router := si.NewRouter(f)
@@ -28,7 +43,11 @@ func main() {
 	router.AddAdapter(tuiAdapter)
 
 	// WebSocket adapter for Claxon Android
-	wsAdapter := websocket.New(":8090")
+	wsAddr := os.Getenv("SI_WS_ADDR")
+	if wsAddr == "" {
+		wsAddr = ":8090"
+	}
+	wsAdapter := websocket.New(wsAddr)
 	router.AddAdapter(wsAdapter)
 
 	// Discord adapter (if token provided)

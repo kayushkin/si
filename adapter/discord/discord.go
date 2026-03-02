@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -48,7 +49,7 @@ func (a *Adapter) Start(ctx context.Context) error {
 			ID:        m.ID,
 			Text:      m.Content,
 			Author:    m.Author.Username,
-			Channel:   m.ChannelID,
+			Channel:   "discord:" + m.ChannelID,
 			Timestamp: time.Now(),
 		}
 	})
@@ -67,9 +68,9 @@ func (a *Adapter) Start(ctx context.Context) error {
 }
 
 func (a *Adapter) Send(msg si.Message) error {
-	ch := msg.Channel
-	if ch == "" || ch == "discord" || ch == "tui" {
-		ch = a.channelID
+	ch := a.channelID // default
+	if strings.HasPrefix(msg.Channel, "discord:") {
+		ch = strings.TrimPrefix(msg.Channel, "discord:")
 	}
 
 	_, err := a.session.ChannelMessageSend(ch, msg.Text)
