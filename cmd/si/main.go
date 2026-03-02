@@ -16,8 +16,8 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	// Feed to inber (placeholder — will be replaced with real pipe/socket)
-	f := feed.NewStdio()
+	// Echo feed for testing (replace with real inber feed later)
+	f := feed.NewEcho()
 
 	// Router
 	router := si.NewRouter(f)
