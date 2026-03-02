@@ -7,6 +7,7 @@ import (
 	"os/signal"
 
 	si "github.com/kayushkin/si"
+	"github.com/kayushkin/si/adapter/discord"
 	"github.com/kayushkin/si/adapter/tui"
 	"github.com/kayushkin/si/adapter/websocket"
 	"github.com/kayushkin/si/feed"
@@ -22,7 +23,7 @@ func main() {
 	// Router
 	router := si.NewRouter(f)
 
-	// TUI adapter (always on for now)
+	// TUI adapter (always on)
 	tuiAdapter := tui.New("slava")
 	router.AddAdapter(tuiAdapter)
 
@@ -30,9 +31,15 @@ func main() {
 	wsAdapter := websocket.New(":8090")
 	router.AddAdapter(wsAdapter)
 
-	// TODO: matterbridge adapter (enable via config)
-	// mbAdapter := matterbridge.New("http://localhost:4242/api", "gateway1", "inber")
-	// router.AddAdapter(mbAdapter)
+	// Discord adapter (if token provided)
+	if token := os.Getenv("SI_DISCORD_TOKEN"); token != "" {
+		channelID := os.Getenv("SI_DISCORD_CHANNEL")
+		if channelID == "" {
+			channelID = "143132977210195968" // default: Pretend server
+		}
+		discordAdapter := discord.New(token, channelID)
+		router.AddAdapter(discordAdapter)
+	}
 
 	log.Println("[sí] starting...")
 

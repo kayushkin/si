@@ -42,7 +42,7 @@ func (e *Echo) loop() {
 				ID:        uuid.New().String(),
 				Text:      response,
 				Author:    "inber",
-				Channel:   msg.Channel,
+				Channel:   "", // broadcast to all adapters
 				Timestamp: time.Now(),
 			}
 		case <-e.done:
