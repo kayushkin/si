@@ -19,13 +19,21 @@ func main() {
 	defer cancel()
 
 	// Determine feed mode
-	useEcho := os.Getenv("SI_ECHO") == "1"
+	// SI_FEED=echo   - echo mode (test)
+	// SI_FEED=api    - WebSocket API (inber connects to si)
+	// SI_FEED=inber  - direct inber calls (si calls inber CLI)
+	feedMode := os.Getenv("SI_FEED")
+	if feedMode == "" {
+		feedMode = "inber" // default: direct inber with opus46
+	}
 
 	var f si.Feed
-	if useEcho {
+	switch feedMode {
+	case "echo":
 		log.Println("[sí] using echo feed (test mode)")
 		f = feed.NewEcho()
-	} else {
+
+	case "api":
 		// API feed — inber connects via WebSocket
 		apiAddr := os.Getenv("SI_API_ADDR")
 		if apiAddr == "" {
@@ -34,6 +42,19 @@ func main() {
 		apiFeed := feed.NewAPI(apiAddr)
 		go apiFeed.Start(ctx)
 		f = apiFeed
+
+	case "inber":
+		// Direct inber — si calls inber CLI with opus46 orchestrator
+		inberFeed := feed.NewInberDirect(feed.InberDirectConfig{
+			Agent: getEnvOrDefault("SI_INBER_AGENT", "task-manager"),
+			Model: os.Getenv("SI_INBER_MODEL"), // optional override
+		})
+		inberFeed.Start()
+		f = inberFeed
+		log.Println("[sí] using inber direct feed with task-manager (opus46)")
+
+	default:
+		log.Fatalf("unknown SI_FEED mode: %s (use: echo, api, inber)", feedMode)
 	}
 
 	// Router
@@ -76,4 +97,11 @@ func main() {
 	if err := router.Run(ctx); err != nil {
 		log.Printf("[sí] %v", err)
 	}
+}
+
+func getEnvOrDefault(key, defaultVal string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return defaultVal
 }
