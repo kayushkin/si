@@ -155,13 +155,12 @@ func (f *InberDirect) processMessage(msg si.Message) {
 // runInber executes inber with the given input and model.
 func (f *InberDirect) runInber(input, sessionID, model string) (string, error) {
 	// Build command
-	args := []string{"run", "--agent", f.agent}
+	// Note: inber doesn't have --session flag, so we use --detach for isolated runs
+	args := []string{"run", "--agent", f.agent, "--detach"}
 	if model != "" {
 		args = append(args, "--model", model)
 	}
-	if sessionID != "" {
-		args = append(args, "--session", sessionID)
-	}
+	// sessionID is tracked by si but not passed to inber (for future use)
 	args = append(args, "--raw") // raw output mode
 
 	ctx, cancel := context.WithTimeout(f.ctx, 120*time.Second)
