@@ -211,3 +211,42 @@ func TestNeedsFallback(t *testing.T) {
 
 	t.Log("✓ Fallback detection logic works")
 }
+
+// TestInberDirect_Integration tests a real message through the feed
+// This test is skipped by default - set SI_INTEGRATION=1 to run
+func TestInberDirect_Integration(t *testing.T) {
+	if os.Getenv("SI_INTEGRATION") != "1" {
+		t.Skip("Skipping integration test - set SI_INTEGRATION=1 to run")
+	}
+
+	feed := NewInberDirect(InberDirectConfig{
+		Agent: "worker", // Use worker (glm-5) for faster response
+	})
+	defer feed.Close()
+
+	if err := feed.Start(); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	// Send a test message
+	msg := si.Message{
+		Text:    "Say 'integration test passed' and nothing else",
+		Channel: "test",
+		Author:  "tester",
+	}
+
+	if err := feed.Write(msg); err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+
+	// Wait for response with timeout
+	select {
+	case resp := <-feed.Read():
+		if resp.Text == "" {
+			t.Error("empty response")
+		}
+		t.Logf("✓ Integration test passed: %s", truncate(resp.Text, 100))
+	case <-time.After(60 * time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+}
