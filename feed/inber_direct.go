@@ -34,6 +34,9 @@ type InberDirect struct {
 
 	ctx    context.Context
 	cancel context.CancelFunc
+	
+	// logstack client for centralized logging
+	logstackClient *LogstackClient
 }
 
 // InberDirectConfig configures the inber direct feed.
@@ -73,6 +76,7 @@ func NewInberDirect(cfg InberDirectConfig) *InberDirect {
 		sessions:       make(map[string]string),
 		ctx:            ctx,
 		cancel:         cancel,
+		logstackClient: NewLogstackClient(),
 	}
 }
 
@@ -101,6 +105,9 @@ func (f *InberDirect) Start() error {
 func (f *InberDirect) processMessage(msg si.Message) {
 	start := time.Now()
 
+	// Log incoming message
+	f.logstackClient.LogRouting(msg.Channel, f.agent, f.model)
+
 	// Build context prefix with channel info
 	contextPrefix := ""
 	if msg.Channel != "" {
@@ -117,10 +124,13 @@ func (f *InberDirect) processMessage(msg si.Message) {
 
 	// Try primary model first
 	responseText, err := f.runInber(fullInput, sessionID, f.model)
+	modelUsed := f.model
+
 	if err != nil || needsFallback(responseText, err) {
 		// Log the failure and try fallback
 		if err != nil {
 			log.Printf("[feed/inber] primary model failed: %v, trying fallback %s", err, f.fallbackModel)
+			f.logstackClient.LogError(msg.Channel, f.model, err.Error())
 		} else {
 			log.Printf("[feed/inber] primary model gave error response, trying fallback %s", f.fallbackModel)
 		}
@@ -129,10 +139,12 @@ func (f *InberDirect) processMessage(msg si.Message) {
 		fallbackText, fallbackErr := f.runInber(fullInput, sessionID, f.fallbackModel)
 		if fallbackErr != nil {
 			log.Printf("[feed/inber] fallback also failed: %v", fallbackErr)
+			f.logstackClient.LogError(msg.Channel, f.fallbackModel, fallbackErr.Error())
 			f.sendError(msg, fmt.Sprintf("both models failed: %v (fallback: %v)", err, fallbackErr))
 			return
 		}
 		responseText = fallbackText
+		modelUsed = f.fallbackModel
 	}
 
 	elapsed := time.Since(start)
@@ -143,6 +155,9 @@ func (f *InberDirect) processMessage(msg si.Message) {
 	}
 
 	log.Printf("[feed/inber] response in %v: %s", elapsed, truncate(responseText, 80))
+
+	// Log successful response
+	f.logstackClient.LogMessage(msg.Channel, modelUsed, responseText, elapsed.Milliseconds())
 
 	// Send response back through the feed
 	f.outbound <- si.Message{
