@@ -213,7 +213,7 @@ func (c *Client) processWithInber(ctx context.Context, msg si.Message) si.Messag
 		args = append(args, "--agent", agent)
 	}
 
-	cmdCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
 	cmd := exec.CommandContext(cmdCtx, c.inberBin, args...)
