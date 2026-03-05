@@ -137,10 +137,10 @@ func (f *InberDirect) processMessage(msg si.Message) {
 	fullInput := contextPrefix + msg.Text
 
 	// Try primary model first
-	responseText, err := f.runInber(fullInput, sessionID, agent, f.model)
+	result, err := f.runInber(fullInput, sessionID, agent, f.model)
 	modelUsed := f.model
 
-	if err != nil || needsFallback(responseText, err) {
+	if err != nil || needsFallback(result.text, err) {
 		// Log the failure and try fallback
 		if err != nil {
 			log.Printf("[feed/inber] primary model failed: %v, trying fallback %s", err, f.fallbackModel)
@@ -150,39 +150,54 @@ func (f *InberDirect) processMessage(msg si.Message) {
 		}
 
 		// Retry with fallback model
-		fallbackText, fallbackErr := f.runInber(fullInput, sessionID, agent, f.fallbackModel)
+		fallbackResult, fallbackErr := f.runInber(fullInput, sessionID, agent, f.fallbackModel)
 		if fallbackErr != nil {
 			log.Printf("[feed/inber] fallback also failed: %v", fallbackErr)
 			f.logstackClient.LogError(msg.Channel, f.fallbackModel, fallbackErr.Error())
 			f.sendError(msg, fmt.Sprintf("both models failed: %v (fallback: %v)", err, fallbackErr))
 			return
 		}
-		responseText = fallbackText
+		result = fallbackResult
 		modelUsed = f.fallbackModel
 	}
 
 	elapsed := time.Since(start)
 
-	if responseText == "" {
+	if result.text == "" {
 		log.Printf("[feed/inber] empty response in %v", elapsed)
 		return
 	}
 
-	log.Printf("[feed/inber] response in %v: %s", elapsed, truncate(responseText, 80))
+	log.Printf("[feed/inber] response in %v: %s", elapsed, truncate(result.text, 80))
 
 	// Log successful response
-	f.logstackClient.LogMessage(msg.Channel, modelUsed, responseText, elapsed.Milliseconds())
+	f.logstackClient.LogMessage(msg.Channel, modelUsed, result.text, elapsed.Milliseconds())
+
+	// Attach metadata
+	meta := result.meta
+	if meta == nil {
+		meta = &si.MessageMeta{}
+	}
+	meta.DurationMs = elapsed.Milliseconds()
+	meta.Model = modelUsed
 
 	// Send response back through the feed
 	f.outbound <- si.Message{
-		Text:    responseText,
+		Text:    result.text,
 		Channel: msg.Channel, // route back to origin
 		Author:  agent,
+		Meta:    meta,
 	}
 }
 
 // runInber executes inber with the given input and model.
-func (f *InberDirect) runInber(input, sessionID, agent, model string) (string, error) {
+// inberResult holds output text plus any parsed metadata from stderr.
+type inberResult struct {
+	text string
+	meta *si.MessageMeta
+}
+
+func (f *InberDirect) runInber(input, sessionID, agent, model string) (inberResult, error) {
 	// Build command
 	// Note: inber doesn't have --session flag, so we use --detach for isolated runs
 	args := []string{"run", "--agent", agent, "--detach"}
@@ -201,18 +216,18 @@ func (f *InberDirect) runInber(input, sessionID, agent, model string) (string, e
 	// Pipe input
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return "", fmt.Errorf("stdin pipe: %w", err)
+		return inberResult{}, fmt.Errorf("stdin pipe: %w", err)
 	}
 
 	// Capture output
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", fmt.Errorf("stdout pipe: %w", err)
+		return inberResult{}, fmt.Errorf("stdout pipe: %w", err)
 	}
 	stderr, _ := cmd.StderrPipe()
 
 	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("start: %w", err)
+		return inberResult{}, fmt.Errorf("start: %w", err)
 	}
 
 	// Send the message with context
@@ -242,18 +257,71 @@ func (f *InberDirect) runInber(input, sessionID, agent, model string) (string, e
 	responseText := strings.TrimSpace(response.String())
 
 	if ctx.Err() == context.DeadlineExceeded {
-		return "", fmt.Errorf("timeout after 120s")
+		return inberResult{}, fmt.Errorf("timeout after 120s")
 	}
 
 	if waitErr != nil {
 		// Check if we got a partial response anyway
 		if responseText != "" {
-			return responseText, nil
+			return inberResult{text: responseText, meta: parseStderrMeta(string(errData))}, nil
 		}
-		return "", fmt.Errorf("exit %d: %s", cmd.ProcessState.ExitCode(), string(errData))
+		return inberResult{}, fmt.Errorf("exit %d: %s", cmd.ProcessState.ExitCode(), string(errData))
 	}
 
-	return responseText, nil
+	return inberResult{text: responseText, meta: parseStderrMeta(string(errData))}, nil
+}
+
+// parseStderrMeta extracts token/cost stats from inber's stderr output.
+// Expected format:
+//
+//	┌─ Tokens ──────────────────────
+//	│ in=123  out=456  total=579  tools=2
+//	│ cache: 100 read, 50 created
+//	│ cost=$0.0042
+//	└───────────────────────────────
+func parseStderrMeta(stderr string) *si.MessageMeta {
+	if stderr == "" {
+		return nil
+	}
+	meta := &si.MessageMeta{}
+	hasData := false
+
+	for _, line := range strings.Split(stderr, "\n") {
+		line = strings.TrimSpace(line)
+		// Token line: "│ in=123  out=456  total=579  tools=2"
+		if strings.Contains(line, "in=") && strings.Contains(line, "out=") {
+			fmt.Sscanf(extractAfter(line, "in="), "%d", &meta.InputTokens)
+			fmt.Sscanf(extractAfter(line, "out="), "%d", &meta.OutputTokens)
+			fmt.Sscanf(extractAfter(line, "tools="), "%d", &meta.ToolCalls)
+			hasData = true
+		}
+		// Cache line: "│ cache: 100 read, 50 created"
+		if strings.Contains(line, "cache:") {
+			fmt.Sscanf(extractAfter(line, "cache: "), "%d", &meta.CacheReadTokens)
+			if idx := strings.Index(line, "read, "); idx >= 0 {
+				fmt.Sscanf(line[idx+6:], "%d", &meta.CacheCreationTokens)
+			}
+		}
+		// Cost line: "│ cost=$0.0042"
+		if strings.Contains(line, "cost=$") {
+			fmt.Sscanf(extractAfter(line, "cost=$"), "%f", &meta.Cost)
+			hasData = true
+		}
+	}
+
+	if !hasData {
+		return nil
+	}
+	return meta
+}
+
+// extractAfter returns the substring after the first occurrence of prefix.
+func extractAfter(s, prefix string) string {
+	idx := strings.Index(s, prefix)
+	if idx < 0 {
+		return ""
+	}
+	return s[idx+len(prefix):]
 }
 
 // needsFallback checks if the response indicates an API error that warrants fallback.

@@ -13,4 +13,19 @@ type Message struct {
 	MediaURL  string    `json:"media_url"` // optional: attachment URL
 	MediaData []byte    `json:"-"`         // optional: raw attachment bytes (not serialized)
 	Timestamp time.Time `json:"timestamp"`
+
+	// Metadata from inber (omitted when zero)
+	Meta *MessageMeta `json:"meta,omitempty"`
+}
+
+// MessageMeta holds optional stats from an inber turn.
+type MessageMeta struct {
+	InputTokens         int     `json:"input_tokens,omitempty"`
+	OutputTokens        int     `json:"output_tokens,omitempty"`
+	CacheReadTokens     int     `json:"cache_read_tokens,omitempty"`
+	CacheCreationTokens int     `json:"cache_creation_tokens,omitempty"`
+	ToolCalls           int     `json:"tool_calls,omitempty"`
+	Cost                float64 `json:"cost,omitempty"`
+	DurationMs          int64   `json:"duration_ms,omitempty"`
+	Model               string  `json:"model,omitempty"`
 }
