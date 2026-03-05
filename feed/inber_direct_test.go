@@ -2,6 +2,7 @@ package feed
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -47,20 +48,20 @@ func TestInberDirect_SessionTracking(t *testing.T) {
 		channel  string
 		expected string
 	}{
-		{"discord:123456", "si-discord-123456"},
-		{"tui", "si-tui"},
-		{"websocket", "si-websocket"},
-		{"openclaw", "si-openclaw"},
+		{"discord:123456", "si-discord-123456-worker"},
+		{"tui", "si-tui-worker"},
+		{"websocket", "si-websocket-worker"},
+		{"openclaw", "si-openclaw-worker"},
 	}
 
 	for _, tc := range tests {
-		sessionID := feed.getOrCreateSession(tc.channel)
+		sessionID := feed.getOrCreateSession(tc.channel, "worker")
 		if sessionID != tc.expected {
 			t.Errorf("channel %q: expected session %q, got %q", tc.channel, tc.expected, sessionID)
 		}
 
 		// Second call should return same session
-		sessionID2 := feed.getOrCreateSession(tc.channel)
+		sessionID2 := feed.getOrCreateSession(tc.channel, "worker")
 		if sessionID2 != sessionID {
 			t.Errorf("channel %q: session not consistent", tc.channel)
 		}
@@ -139,7 +140,7 @@ func TestInberDirect_MultipleChannels(t *testing.T) {
 	channels := []string{"discord:1", "discord:2", "tui", "websocket"}
 
 	for _, ch := range channels {
-		sessionID := feed.getOrCreateSession(ch)
+		sessionID := feed.getOrCreateSession(ch, "worker")
 		if sessionID == "" {
 			t.Errorf("channel %q: empty session ID", ch)
 		}
@@ -161,7 +162,7 @@ func TestInberDirect_EmptyChannel(t *testing.T) {
 	defer feed.Close()
 
 	// Empty channel should return empty session
-	sessionID := feed.getOrCreateSession("")
+	sessionID := feed.getOrCreateSession("", "worker")
 	if sessionID != "" {
 		t.Errorf("expected empty session for empty channel, got %q", sessionID)
 	}
