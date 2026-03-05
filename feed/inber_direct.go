@@ -51,10 +51,18 @@ type InberDirectConfig struct {
 // NewInberDirect creates a feed that calls inber directly.
 func NewInberDirect(cfg InberDirectConfig) *InberDirect {
 	if cfg.InberBin == "" {
-		cfg.InberBin = os.ExpandEnv("$HOME/bin/inber")
+		if bin := os.Getenv("SI_INBER_BIN"); bin != "" {
+			cfg.InberBin = bin
+		} else {
+			cfg.InberBin = os.ExpandEnv("$HOME/bin/inber")
+		}
 	}
 	if cfg.InberDir == "" {
-		cfg.InberDir = os.ExpandEnv("$HOME/life/repos/inber")
+		if dir := os.Getenv("SI_INBER_DIR"); dir != "" {
+			cfg.InberDir = dir
+		} else {
+			cfg.InberDir = os.ExpandEnv("$HOME/life/repos/inber")
+		}
 	}
 	if cfg.Agent == "" {
 		cfg.Agent = "task-manager" // opus46 orchestrator
@@ -105,8 +113,14 @@ func (f *InberDirect) Start() error {
 func (f *InberDirect) processMessage(msg si.Message) {
 	start := time.Now()
 
+	// Use message-specified agent or default
+	agent := f.agent
+	if msg.Agent != "" {
+		agent = msg.Agent
+	}
+
 	// Log incoming message
-	f.logstackClient.LogRouting(msg.Channel, f.agent, f.model)
+	f.logstackClient.LogRouting(msg.Channel, agent, f.model)
 
 	// Build context prefix with channel info
 	contextPrefix := ""
@@ -118,12 +132,12 @@ func (f *InberDirect) processMessage(msg si.Message) {
 		contextPrefix += "] "
 	}
 
-	// Get or create session for this channel
-	sessionID := f.getOrCreateSession(msg.Channel)
+	// Get or create session for this channel+agent
+	sessionID := f.getOrCreateSession(msg.Channel, agent)
 	fullInput := contextPrefix + msg.Text
 
 	// Try primary model first
-	responseText, err := f.runInber(fullInput, sessionID, f.model)
+	responseText, err := f.runInber(fullInput, sessionID, agent, f.model)
 	modelUsed := f.model
 
 	if err != nil || needsFallback(responseText, err) {
@@ -136,7 +150,7 @@ func (f *InberDirect) processMessage(msg si.Message) {
 		}
 
 		// Retry with fallback model
-		fallbackText, fallbackErr := f.runInber(fullInput, sessionID, f.fallbackModel)
+		fallbackText, fallbackErr := f.runInber(fullInput, sessionID, agent, f.fallbackModel)
 		if fallbackErr != nil {
 			log.Printf("[feed/inber] fallback also failed: %v", fallbackErr)
 			f.logstackClient.LogError(msg.Channel, f.fallbackModel, fallbackErr.Error())
@@ -163,15 +177,15 @@ func (f *InberDirect) processMessage(msg si.Message) {
 	f.outbound <- si.Message{
 		Text:    responseText,
 		Channel: msg.Channel, // route back to origin
-		Author:  f.agent,
+		Author:  agent,
 	}
 }
 
 // runInber executes inber with the given input and model.
-func (f *InberDirect) runInber(input, sessionID, model string) (string, error) {
+func (f *InberDirect) runInber(input, sessionID, agent, model string) (string, error) {
 	// Build command
 	// Note: inber doesn't have --session flag, so we use --detach for isolated runs
-	args := []string{"run", "--agent", f.agent, "--detach"}
+	args := []string{"run", "--agent", agent, "--detach"}
 	if model != "" {
 		args = append(args, "--model", model)
 	}
@@ -273,22 +287,24 @@ func needsFallback(response string, err error) bool {
 }
 
 // getOrCreateSession returns a session ID for continuity.
-func (f *InberDirect) getOrCreateSession(channel string) string {
+func (f *InberDirect) getOrCreateSession(channel, agent string) string {
 	if channel == "" {
 		return ""
 	}
+	// Key by channel+agent for per-agent sessions
+	key := channel + ":" + agent
 	f.mu.RLock()
-	sessionID, ok := f.sessions[channel]
+	sessionID, ok := f.sessions[key]
 	f.mu.RUnlock()
 
 	if ok {
 		return sessionID
 	}
 
-	// Use a deterministic session based on channel
-	sessionID = "si-" + strings.ReplaceAll(channel, ":", "-")
+	// Use a deterministic session based on channel+agent
+	sessionID = "si-" + strings.ReplaceAll(key, ":", "-")
 	f.mu.Lock()
-	f.sessions[channel] = sessionID
+	f.sessions[key] = sessionID
 	f.mu.Unlock()
 
 	return sessionID

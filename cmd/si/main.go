@@ -22,6 +22,7 @@ func main() {
 	// SI_FEED=echo   - echo mode (test)
 	// SI_FEED=api    - WebSocket API (inber connects to si)
 	// SI_FEED=inber  - direct inber calls (si calls inber CLI)
+	// SI_FEED=tunnel - tunnel to WSL (si connects to tunnel server)
 	feedMode := os.Getenv("SI_FEED")
 	if feedMode == "" {
 		feedMode = "inber" // default: direct inber with opus46
@@ -53,8 +54,25 @@ func main() {
 		f = inberFeed
 		log.Println("[sí] using inber direct feed with task-manager (opus46)")
 
+	case "tunnel":
+		// Tunnel feed — si connects to tunnel server which routes to WSL
+		tunnelURL := os.Getenv("SI_TUNNEL_URL")
+		if tunnelURL == "" {
+			tunnelURL = "ws://127.0.0.1:8091/feed"
+		}
+		tunnelToken := os.Getenv("SI_TUNNEL_TOKEN")
+		tunnelFeed := feed.NewTunnelFeed(feed.TunnelFeedConfig{
+			ServerURL: tunnelURL,
+			AuthToken: tunnelToken,
+		})
+		if err := tunnelFeed.Start(); err != nil {
+			log.Fatalf("[sí] failed to connect to tunnel server: %v", err)
+		}
+		f = tunnelFeed
+		log.Printf("[sí] using tunnel feed via %s", tunnelURL)
+
 	default:
-		log.Fatalf("unknown SI_FEED mode: %s (use: echo, api, inber)", feedMode)
+		log.Fatalf("unknown SI_FEED mode: %s (use: echo, api, inber, tunnel)", feedMode)
 	}
 
 	// Router
@@ -70,6 +88,7 @@ func main() {
 		wsAddr = ":8090"
 	}
 	wsAdapter := websocket.New(wsAddr)
+	wsAdapter.SetRouter(router)
 	router.AddAdapter(wsAdapter)
 
 	// Discord adapter (if token provided)

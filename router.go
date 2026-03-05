@@ -4,21 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 )
 
 // Feed is the interface for reading/writing to inber's I/O.
-// The concrete implementation depends on how inber exposes its sessions
-// (stdin/stdout pipes, unix socket, HTTP, etc).
 type Feed interface {
-	// Write sends a message to inber.
 	Write(msg Message) error
-
-	// Read returns a channel of messages from inber.
 	Read() <-chan Message
-
-	// Close shuts down the feed connection.
 	Close() error
 }
 
@@ -27,12 +22,24 @@ type Router struct {
 	feed     Feed
 	adapters []Adapter
 	mu       sync.RWMutex
+
+	// Event bus
+	subscribers map[chan Event]bool
+	subMu       sync.RWMutex
+
+	// History
+	History *History
 }
 
 // NewRouter creates a router connected to the given inber feed.
 func NewRouter(feed Feed) *Router {
+	home, _ := os.UserHomeDir()
+	histPath := filepath.Join(home, ".inber", "si-history.jsonl")
+
 	return &Router{
-		feed: feed,
+		feed:        feed,
+		subscribers: make(map[chan Event]bool),
+		History:     NewHistory(histPath, 500),
 	}
 }
 
@@ -41,6 +48,53 @@ func (r *Router) AddAdapter(a Adapter) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.adapters = append(r.adapters, a)
+}
+
+// Subscribe returns a channel that receives all routed events.
+func (r *Router) Subscribe() <-chan Event {
+	ch := make(chan Event, 128)
+	r.subMu.Lock()
+	r.subscribers[ch] = true
+	r.subMu.Unlock()
+	return ch
+}
+
+// Unsubscribe removes a subscriber channel.
+func (r *Router) Unsubscribe(ch <-chan Event) {
+	r.subMu.Lock()
+	defer r.subMu.Unlock()
+	// Find the matching chan by iterating
+	for sub := range r.subscribers {
+		if sub == ch {
+			delete(r.subscribers, sub)
+			close(sub)
+			return
+		}
+	}
+}
+
+// publish sends an event to all subscribers and records it in history.
+func (r *Router) publish(e Event) {
+	r.History.Add(e)
+
+	r.subMu.RLock()
+	defer r.subMu.RUnlock()
+	for ch := range r.subscribers {
+		select {
+		case ch <- e:
+		default:
+			// drop if subscriber is slow
+		}
+	}
+}
+
+// Adapters returns the current list of adapters.
+func (r *Router) Adapters() []Adapter {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]Adapter, len(r.adapters))
+	copy(out, r.adapters)
+	return out
 }
 
 // Run starts all adapters and begins routing messages.
@@ -74,6 +128,7 @@ func (r *Router) Run(ctx context.Context) error {
 						return
 					}
 					log.Printf("[router] %s → inber: %s", a.Name(), truncate(msg.Text, 80))
+					r.publish(Event{Type: EventInbound, Message: msg})
 					if err := r.feed.Write(msg); err != nil {
 						log.Printf("[router] feed write error: %v", err)
 					}
@@ -92,10 +147,9 @@ func (r *Router) Run(ctx context.Context) error {
 				if !ok {
 					return
 				}
+				r.publish(Event{Type: EventOutbound, Message: msg})
 				r.mu.RLock()
 				for _, a := range r.adapters {
-					// Route to the originating adapter, or broadcast if no channel specified
-					// Channel format: "adaptername" or "adaptername:details"
 					if msg.Channel == "" || msg.Channel == a.Name() || strings.HasPrefix(msg.Channel, a.Name()+":") {
 						if err := a.Send(msg); err != nil {
 							log.Printf("[router] send to %s failed: %v", a.Name(), err)
@@ -108,6 +162,7 @@ func (r *Router) Run(ctx context.Context) error {
 	}()
 
 	<-ctx.Done()
+	r.History.Close()
 	return fmt.Errorf("router stopped: %w", ctx.Err())
 }
 

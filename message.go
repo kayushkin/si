@@ -7,6 +7,7 @@ type Message struct {
 	ID        string    `json:"id"`
 	Text      string    `json:"text"`
 	Author    string    `json:"author"`
+	Agent     string    `json:"agent"`     // optional: target agent for the message
 	Channel   string    `json:"channel"`   // adapter name or channel identifier
 	ReplyTo   string    `json:"reply_to"`  // optional: message ID being replied to
 	MediaURL  string    `json:"media_url"` // optional: attachment URL
