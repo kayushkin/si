@@ -167,25 +167,27 @@ func (c *Client) connectAndProcess(ctx context.Context) error {
 
 		log.Printf("[tunnel-client] received: %s", truncate(msg.Text, 50))
 
-		// Process with local inber
-		response := c.processWithInber(ctx, msg)
+		// Process async — don't block the read loop
+		go func(m si.Message) {
+			response := c.processWithInber(ctx, m)
 
-		// Send response back through tunnel
-		respData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("[tunnel-client] marshal response error: %v", err)
-			continue
-		}
+			respData, err := json.Marshal(response)
+			if err != nil {
+				log.Printf("[tunnel-client] marshal response error: %v", err)
+				return
+			}
 
-		c.mu.Lock()
-		err = conn.WriteMessage(websocket.TextMessage, respData)
-		c.mu.Unlock()
+			c.mu.Lock()
+			err = conn.WriteMessage(websocket.TextMessage, respData)
+			c.mu.Unlock()
 
-		if err != nil {
-			return err
-		}
+			if err != nil {
+				log.Printf("[tunnel-client] send response error: %v", err)
+				return
+			}
 
-		log.Printf("[tunnel-client] sent response: %s", truncate(response.Text, 50))
+			log.Printf("[tunnel-client] sent response: %s", truncate(response.Text, 50))
+		}(msg)
 	}
 }
 
