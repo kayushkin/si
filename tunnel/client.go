@@ -202,14 +202,13 @@ func (c *Client) processWithInber(ctx context.Context, msg si.Message) si.Messag
 	}
 
 	// Determine agent
-	agent := "task-manager"
+	agent := "claxon"
 	if msg.Agent != "" {
 		agent = msg.Agent
 	}
 
-	// Run inber with --continue to resume the most recent session
-	// This maintains context across all dashboard messages
-	args := []string{"run", "--agent", agent, "--continue"}
+	// Run inber in detach mode for isolated runs
+	args := []string{"run", "--agent", agent, "--detach"}
 
 	cmdCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
