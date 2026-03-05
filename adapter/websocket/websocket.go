@@ -211,10 +211,15 @@ func (a *Adapter) handleStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(status)
 }
 
-// Send broadcasts a message to all connected WebSocket clients (backward compat).
+// Send is called by the router for direct message routing.
+// Since the event bus broadcast already handles delivery to WS clients,
+// this is a no-op to avoid duplicate messages.
 func (a *Adapter) Send(msg si.Message) error {
-	// The event bus broadcast handles this now, but keep for direct router sends.
-	// Send as the legacy format for backward compatibility.
+	// Event bus handles all delivery now — no-op to prevent duplicates.
+	return nil
+}
+
+func (a *Adapter) sendLegacy_unused(msg si.Message) error {
 	envelope := map[string]interface{}{
 		"type":    "response",
 		"message": msg,
