@@ -201,14 +201,17 @@ func (c *Client) processWithInber(ctx context.Context, msg si.Message) si.Messag
 		contextPrefix += "] "
 	}
 
-	// Determine agent
-	agent := "claxon"
+	// Determine agent (empty = use default from agents.json)
+	agent := ""
 	if msg.Agent != "" {
 		agent = msg.Agent
 	}
 
-	// Run inber in detach mode for isolated runs
-	args := []string{"run", "--agent", agent, "--detach"}
+	// Run inber — resume default session for context continuity
+	args := []string{"run"}
+	if agent != "" {
+		args = append(args, "--agent", agent)
+	}
 
 	cmdCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
