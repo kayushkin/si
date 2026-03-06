@@ -193,6 +193,8 @@ func (c *Client) connectAndProcess(ctx context.Context) error {
 
 // processWithInber runs inber locally and returns the response.
 func (c *Client) processWithInber(ctx context.Context, msg si.Message) si.Message {
+	start := time.Now()
+
 	// Build context prefix
 	contextPrefix := ""
 	if msg.Channel != "" {
@@ -253,9 +255,11 @@ func (c *Client) processWithInber(ctx context.Context, msg si.Message) si.Messag
 		output = append(output, buf[:n]...)
 	}
 
-	// Check for errors
+	// Check for errors and parse metadata from stderr
 	errData, _ := io.ReadAll(stderr)
 	cmd.Wait()
+
+	elapsed := time.Since(start)
 
 	response := si.Message{
 		Text:    string(output),
@@ -267,7 +271,133 @@ func (c *Client) processWithInber(ctx context.Context, msg si.Message) si.Messag
 		response.Text = string(errData)
 	}
 
+	// Parse metadata from stderr (token counts, cost, etc.)
+	meta := parseStderrMeta(string(errData))
+	if meta == nil {
+		meta = &si.MessageMeta{}
+	}
+	meta.DurationMs = elapsed.Milliseconds()
+	// Extract model from stderr if present
+	if model := extractModel(string(errData)); model != "" {
+		meta.Model = model
+	}
+	response.Meta = meta
+
 	return response
+}
+
+// parseStderrMeta extracts token/cost stats from inber's stderr output.
+// Expected format:
+//
+//	┌─ Tokens ──────────────────────
+//	│ in=123  out=456  total=579  tools=2
+//	│ cache: 100 read, 50 created
+//	│ cost=$0.0042
+//	└───────────────────────────────
+func parseStderrMeta(stderr string) *si.MessageMeta {
+	if stderr == "" {
+		return nil
+	}
+	meta := &si.MessageMeta{}
+	hasData := false
+
+	for _, line := range splitLines(stderr) {
+		line = trimSpace(line)
+		// Token line: "│ in=123  out=456  total=579  tools=2"
+		if containsStr(line, "in=") && containsStr(line, "out=") {
+			fmt.Sscanf(extractAfter(line, "in="), "%d", &meta.InputTokens)
+			fmt.Sscanf(extractAfter(line, "out="), "%d", &meta.OutputTokens)
+			fmt.Sscanf(extractAfter(line, "tools="), "%d", &meta.ToolCalls)
+			hasData = true
+		}
+		// Cache line: "│ cache: 100 read, 50 created"
+		if containsStr(line, "cache:") {
+			fmt.Sscanf(extractAfter(line, "cache: "), "%d", &meta.CacheReadTokens)
+			if idx := indexStr(line, "read, "); idx >= 0 {
+				fmt.Sscanf(line[idx+6:], "%d", &meta.CacheCreationTokens)
+			}
+		}
+		// Cost line: "│ cost=$0.0042"
+		if containsStr(line, "cost=$") {
+			fmt.Sscanf(extractAfter(line, "cost=$"), "%f", &meta.Cost)
+			hasData = true
+		}
+	}
+
+	if !hasData {
+		return nil
+	}
+	return meta
+}
+
+// extractModel parses the model name from stderr.
+// Expected: "model: claude-sonnet-4-5 (provider=anthropic, openai=false)"
+func extractModel(stderr string) string {
+	for _, line := range splitLines(stderr) {
+		line = trimSpace(line)
+		if hasPrefix(line, "model:") {
+			// Extract just the model name before the parentheses
+			rest := trimSpace(line[6:])
+			if idx := indexStr(rest, " ("); idx > 0 {
+				return rest[:idx]
+			}
+			return rest
+		}
+	}
+	return ""
+}
+
+// extractAfter returns the substring after the first occurrence of prefix.
+func extractAfter(s, prefix string) string {
+	idx := indexStr(s, prefix)
+	if idx < 0 {
+		return ""
+	}
+	return s[idx+len(prefix):]
+}
+
+// Helper functions to avoid importing strings package twice
+func splitLines(s string) []string {
+	var lines []string
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\n' {
+			lines = append(lines, s[start:i])
+			start = i + 1
+		}
+	}
+	if start < len(s) {
+		lines = append(lines, s[start:])
+	}
+	return lines
+}
+
+func trimSpace(s string) string {
+	start, end := 0, len(s)
+	for start < end && (s[start] == ' ' || s[start] == '\t' || s[start] == '\r' || s[start] == '\n') {
+		start++
+	}
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\r' || s[end-1] == '\n') {
+		end--
+	}
+	return s[start:end]
+}
+
+func containsStr(s, substr string) bool {
+	return indexStr(s, substr) >= 0
+}
+
+func indexStr(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+func hasPrefix(s, prefix string) bool {
+	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }
 
 func truncate(s string, n int) string {

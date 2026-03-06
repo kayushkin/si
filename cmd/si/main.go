@@ -23,6 +23,7 @@ func main() {
 	// SI_FEED=api    - WebSocket API (inber connects to si)
 	// SI_FEED=inber  - direct inber calls (si calls inber CLI)
 	// SI_FEED=tunnel - tunnel to WSL (si connects to tunnel server)
+	// SI_FEED=bus    - message bus (pub/sub via bus service)
 	feedMode := os.Getenv("SI_FEED")
 	if feedMode == "" {
 		feedMode = "inber" // default: direct inber with opus46
@@ -71,8 +72,26 @@ func main() {
 		f = tunnelFeed
 		log.Printf("[sí] using tunnel feed via %s", tunnelURL)
 
+	case "bus":
+		// Bus feed — si publishes to bus, subscribes for responses
+		busURL := os.Getenv("SI_BUS_URL")
+		if busURL == "" {
+			busURL = "http://127.0.0.1:8100"
+		}
+		busToken := os.Getenv("SI_BUS_TOKEN")
+		busFeed := feed.NewBusFeed(feed.BusFeedConfig{
+			BusURL:   busURL,
+			Token:    busToken,
+			Consumer: "si-server",
+		})
+		if err := busFeed.Start(); err != nil {
+			log.Fatalf("[sí] failed to connect to bus: %v", err)
+		}
+		f = busFeed
+		log.Printf("[sí] using bus feed via %s", busURL)
+
 	default:
-		log.Fatalf("unknown SI_FEED mode: %s (use: echo, api, inber, tunnel)", feedMode)
+		log.Fatalf("unknown SI_FEED mode: %s (use: echo, api, inber, tunnel, bus)", feedMode)
 	}
 
 	// Router
