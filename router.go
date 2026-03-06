@@ -25,6 +25,9 @@ type Router struct {
 	// Event bus for live subscribers (e.g., WebSocket broadcast)
 	subscribers map[chan Event]bool
 	subMu       sync.RWMutex
+
+	// Optional logstack for persistent event logging.
+	logstack *LogstackClient
 }
 
 // NewRouter creates a router connected to the given feed.
@@ -32,6 +35,7 @@ func NewRouter(feed Feed) *Router {
 	return &Router{
 		feed:        feed,
 		subscribers: make(map[chan Event]bool),
+		logstack:    NewLogstackClient(),
 	}
 }
 
@@ -64,8 +68,13 @@ func (r *Router) Unsubscribe(ch <-chan Event) {
 	}
 }
 
-// publish sends an event to all live subscribers.
+// publish sends an event to all live subscribers and logs to logstack.
 func (r *Router) publish(e Event) {
+	// Log to logstack for persistent history.
+	if r.logstack != nil {
+		r.logstack.LogEvent(e)
+	}
+
 	r.subMu.RLock()
 	defer r.subMu.RUnlock()
 	for ch := range r.subscribers {
