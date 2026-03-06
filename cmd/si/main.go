@@ -8,8 +8,6 @@ import (
 
 	si "github.com/kayushkin/si"
 	"github.com/kayushkin/si/adapter/discord"
-	"github.com/kayushkin/si/adapter/openclaw"
-	"github.com/kayushkin/si/adapter/tui"
 	"github.com/kayushkin/si/adapter/websocket"
 	"github.com/kayushkin/si/feed"
 )
@@ -18,15 +16,10 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	// Determine feed mode
-	// SI_FEED=echo   - echo mode (test)
-	// SI_FEED=api    - WebSocket API (inber connects to si)
-	// SI_FEED=inber  - direct inber calls (si calls inber CLI)
-	// SI_FEED=tunnel - tunnel to WSL (si connects to tunnel server)
-	// SI_FEED=bus    - message bus (pub/sub via bus service)
+	// SI_FEED=bus (default) or echo (test).
 	feedMode := os.Getenv("SI_FEED")
 	if feedMode == "" {
-		feedMode = "inber" // default: direct inber with opus46
+		feedMode = "bus"
 	}
 
 	var f si.Feed
@@ -35,45 +28,7 @@ func main() {
 		log.Println("[sí] using echo feed (test mode)")
 		f = feed.NewEcho()
 
-	case "api":
-		// API feed — inber connects via WebSocket
-		apiAddr := os.Getenv("SI_API_ADDR")
-		if apiAddr == "" {
-			apiAddr = ":8091"
-		}
-		apiFeed := feed.NewAPI(apiAddr)
-		go apiFeed.Start(ctx)
-		f = apiFeed
-
-	case "inber":
-		// Direct inber — si calls inber CLI with opus46 orchestrator
-		inberFeed := feed.NewInberDirect(feed.InberDirectConfig{
-			Agent: getEnvOrDefault("SI_INBER_AGENT", "task-manager"),
-			Model: os.Getenv("SI_INBER_MODEL"), // optional override
-		})
-		inberFeed.Start()
-		f = inberFeed
-		log.Println("[sí] using inber direct feed with task-manager (opus46)")
-
-	case "tunnel":
-		// Tunnel feed — si connects to tunnel server which routes to WSL
-		tunnelURL := os.Getenv("SI_TUNNEL_URL")
-		if tunnelURL == "" {
-			tunnelURL = "ws://127.0.0.1:8091/feed"
-		}
-		tunnelToken := os.Getenv("SI_TUNNEL_TOKEN")
-		tunnelFeed := feed.NewTunnelFeed(feed.TunnelFeedConfig{
-			ServerURL: tunnelURL,
-			AuthToken: tunnelToken,
-		})
-		if err := tunnelFeed.Start(); err != nil {
-			log.Fatalf("[sí] failed to connect to tunnel server: %v", err)
-		}
-		f = tunnelFeed
-		log.Printf("[sí] using tunnel feed via %s", tunnelURL)
-
 	case "bus":
-		// Bus feed — si publishes to bus, subscribes for responses
 		busURL := os.Getenv("SI_BUS_URL")
 		if busURL == "" {
 			busURL = "http://127.0.0.1:8100"
@@ -82,7 +37,7 @@ func main() {
 		busFeed := feed.NewBusFeed(feed.BusFeedConfig{
 			BusURL:   busURL,
 			Token:    busToken,
-			Consumer: "si-server",
+			Consumer: "si",
 		})
 		if err := busFeed.Start(); err != nil {
 			log.Fatalf("[sí] failed to connect to bus: %v", err)
@@ -91,17 +46,13 @@ func main() {
 		log.Printf("[sí] using bus feed via %s", busURL)
 
 	default:
-		log.Fatalf("unknown SI_FEED mode: %s (use: echo, api, inber, tunnel, bus)", feedMode)
+		log.Fatalf("unknown SI_FEED mode: %s (use: bus, echo)", feedMode)
 	}
 
-	// Router
+	// Router — stateless, no history.
 	router := si.NewRouter(f)
 
-	// TUI adapter (always on)
-	tuiAdapter := tui.New("slava")
-	router.AddAdapter(tuiAdapter)
-
-	// WebSocket adapter for Claxon Android
+	// WebSocket adapter (dashboard, Claxon Android).
 	wsAddr := os.Getenv("SI_WS_ADDR")
 	if wsAddr == "" {
 		wsAddr = ":8090"
@@ -110,7 +61,7 @@ func main() {
 	wsAdapter.SetRouter(router)
 	router.AddAdapter(wsAdapter)
 
-	// Discord adapter (if token provided)
+	// Discord adapter (if token provided).
 	if token := os.Getenv("SI_DISCORD_TOKEN"); token != "" {
 		channelID := os.Getenv("SI_DISCORD_CHANNEL")
 		if channelID == "" {
@@ -120,26 +71,9 @@ func main() {
 		router.AddAdapter(discordAdapter)
 	}
 
-	// OpenClaw adapter (if token provided)
-	if token := os.Getenv("SI_OPENCLAW_TOKEN"); token != "" {
-		url := os.Getenv("SI_OPENCLAW_URL")
-		if url == "" {
-			url = "ws://localhost:18789"
-		}
-		openclawAdapter := openclaw.New(url, token)
-		router.AddAdapter(openclawAdapter)
-	}
-
 	log.Println("[sí] starting...")
 
 	if err := router.Run(ctx); err != nil {
 		log.Printf("[sí] %v", err)
 	}
-}
-
-func getEnvOrDefault(key, defaultVal string) string {
-	if val := os.Getenv(key); val != "" {
-		return val
-	}
-	return defaultVal
 }

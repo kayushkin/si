@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -15,19 +14,19 @@ import (
 	si "github.com/kayushkin/si"
 )
 
-// BusFeed connects si to the message bus.
-// Inbound messages from adapters are published to the bus.
-// Outbound responses from agents are received via subscription.
+// BusFeed connects si to the message bus as a stateless protocol adapter.
+// All inbound messages publish to "inbound" topic with channel metadata.
+// Subscribes to "outbound" topic for agent responses.
 type BusFeed struct {
-	busURL    string
-	wsURL     string
-	token     string
-	consumer  string
-	inbound   chan si.Message
-	outbound  chan si.Message
-	ctx       context.Context
-	cancel    context.CancelFunc
-	http      *http.Client
+	busURL   string
+	wsURL    string
+	token    string
+	consumer string
+	inbound  chan si.Message
+	outbound chan si.Message
+	ctx      context.Context
+	cancel   context.CancelFunc
+	http     *http.Client
 }
 
 // BusFeedConfig configures the bus feed.
@@ -46,7 +45,7 @@ func NewBusFeed(cfg BusFeedConfig) *BusFeed {
 
 	consumer := cfg.Consumer
 	if consumer == "" {
-		consumer = "si-server"
+		consumer = "si"
 	}
 
 	return &BusFeed{
@@ -64,10 +63,7 @@ func NewBusFeed(cfg BusFeedConfig) *BusFeed {
 
 // Start connects to the bus and begins processing.
 func (f *BusFeed) Start() error {
-	// Subscribe to agent responses via WebSocket.
 	go f.subscribeLoop()
-
-	// Forward outbound messages (from adapters) to the bus.
 	go f.publishLoop()
 
 	log.Printf("[feed/bus] connected to %s as %s", f.busURL, f.consumer)
@@ -95,22 +91,18 @@ func (f *BusFeed) Close() error {
 	return nil
 }
 
-// publishLoop publishes outbound messages to the bus via HTTP.
+// publishLoop publishes all adapter messages to the single "inbound" topic.
+// Channel metadata stays in the message payload — routing is the agent's job.
 func (f *BusFeed) publishLoop() {
 	for {
 		select {
 		case <-f.ctx.Done():
 			return
 		case msg := <-f.outbound:
-			topic := "inbound." + msg.Agent
-			if msg.Agent == "" {
-				topic = "inbound.default"
-			}
-
 			payload, _ := json.Marshal(msg)
 
 			body := map[string]interface{}{
-				"topic":   topic,
+				"topic":   "inbound",
 				"payload": json.RawMessage(payload),
 				"source":  "si",
 			}
@@ -124,12 +116,14 @@ func (f *BusFeed) publishLoop() {
 			}
 			resp.Body.Close()
 
-			log.Printf("[feed/bus] published to %s: %s", topic, truncateBus(msg.Text, 50))
+			log.Printf("[feed/bus] → inbound [%s] %s: %s",
+				msg.Channel, msg.Author, truncateBus(msg.Text, 50))
 		}
 	}
 }
 
-// subscribeLoop connects to the bus WebSocket and receives agent responses.
+// subscribeLoop connects to the bus WebSocket and receives agent responses
+// from the single "outbound" topic.
 func (f *BusFeed) subscribeLoop() {
 	for {
 		select {
@@ -150,7 +144,7 @@ func (f *BusFeed) subscribeLoop() {
 }
 
 func (f *BusFeed) subscribe() error {
-	url := fmt.Sprintf("%s/subscribe?consumer=%s&topics=outbound.*,outbound.default&token=%s",
+	url := fmt.Sprintf("%s/subscribe?consumer=%s&topics=outbound&token=%s",
 		f.wsURL, f.consumer, f.token)
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
@@ -159,7 +153,7 @@ func (f *BusFeed) subscribe() error {
 	}
 	defer conn.Close()
 
-	log.Printf("[feed/bus] subscribed to outbound topics")
+	log.Printf("[feed/bus] subscribed to outbound")
 
 	for {
 		select {
@@ -174,7 +168,6 @@ func (f *BusFeed) subscribe() error {
 			return err
 		}
 
-		// Bus message wraps our si.Message in payload.
 		var busMsg struct {
 			ID      int64           `json:"id"`
 			Topic   string          `json:"topic"`
@@ -191,10 +184,9 @@ func (f *BusFeed) subscribe() error {
 			continue
 		}
 
-		log.Printf("[feed/bus] received from bus: %s", truncateBus(msg.Text, 50))
+		log.Printf("[feed/bus] ← outbound [%s] %s", msg.Channel, truncateBus(msg.Text, 50))
 		f.inbound <- msg
 
-		// Ack the message.
 		go f.ack(busMsg.Topic, busMsg.ID)
 	}
 }
@@ -213,40 +205,6 @@ func (f *BusFeed) ack(topic string, id int64) {
 		return
 	}
 	resp.Body.Close()
-}
-
-// fetchHistory gets recent messages for catch-up.
-func (f *BusFeed) fetchHistory(topic string, limit int) ([]si.Message, error) {
-	url := fmt.Sprintf("%s/history?topic=%s&limit=%d&token=%s",
-		f.busURL, topic, limit, f.token)
-
-	resp, err := f.http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("http %d: %s", resp.StatusCode, body)
-	}
-
-	var busMessages []struct {
-		Payload json.RawMessage `json:"payload"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&busMessages); err != nil {
-		return nil, err
-	}
-
-	var msgs []si.Message
-	for _, bm := range busMessages {
-		var msg si.Message
-		if err := json.Unmarshal(bm.Payload, &msg); err != nil {
-			continue
-		}
-		msgs = append(msgs, msg)
-	}
-	return msgs, nil
 }
 
 func truncateBus(s string, n int) string {

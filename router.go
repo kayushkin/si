@@ -4,42 +4,34 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 )
 
-// Feed is the interface for reading/writing to inber's I/O.
+// Feed is the interface for reading/writing to the message bus.
 type Feed interface {
 	Write(msg Message) error
 	Read() <-chan Message
 	Close() error
 }
 
-// Router shuffles messages between adapters and the inber feed.
+// Router shuffles messages between adapters and the feed.
+// Stateless — no history, no session tracking. Just routing.
 type Router struct {
 	feed     Feed
 	adapters []Adapter
 	mu       sync.RWMutex
 
-	// Event bus
+	// Event bus for live subscribers (e.g., WebSocket broadcast)
 	subscribers map[chan Event]bool
 	subMu       sync.RWMutex
-
-	// History
-	History *History
 }
 
-// NewRouter creates a router connected to the given inber feed.
+// NewRouter creates a router connected to the given feed.
 func NewRouter(feed Feed) *Router {
-	home, _ := os.UserHomeDir()
-	histPath := filepath.Join(home, ".inber", "si-history.jsonl")
-
 	return &Router{
 		feed:        feed,
 		subscribers: make(map[chan Event]bool),
-		History:     NewHistory(histPath, 500),
 	}
 }
 
@@ -63,7 +55,6 @@ func (r *Router) Subscribe() <-chan Event {
 func (r *Router) Unsubscribe(ch <-chan Event) {
 	r.subMu.Lock()
 	defer r.subMu.Unlock()
-	// Find the matching chan by iterating
 	for sub := range r.subscribers {
 		if sub == ch {
 			delete(r.subscribers, sub)
@@ -73,10 +64,8 @@ func (r *Router) Unsubscribe(ch <-chan Event) {
 	}
 }
 
-// publish sends an event to all subscribers and records it in history.
+// publish sends an event to all live subscribers.
 func (r *Router) publish(e Event) {
-	r.History.Add(e)
-
 	r.subMu.RLock()
 	defer r.subMu.RUnlock()
 	for ch := range r.subscribers {
@@ -105,7 +94,7 @@ func (r *Router) Run(ctx context.Context) error {
 	copy(adapters, r.adapters)
 	r.mu.RUnlock()
 
-	// Start all adapters
+	// Start all adapters.
 	for _, a := range adapters {
 		a := a
 		go func() {
@@ -115,7 +104,7 @@ func (r *Router) Run(ctx context.Context) error {
 		}()
 	}
 
-	// Route inbound: adapters → feed
+	// Route inbound: adapters → feed (bus)
 	for _, a := range adapters {
 		a := a
 		go func() {
@@ -127,7 +116,7 @@ func (r *Router) Run(ctx context.Context) error {
 					if !ok {
 						return
 					}
-					log.Printf("[router] %s → inber: %s", a.Name(), truncate(msg.Text, 80))
+					log.Printf("[router] %s → bus: %s", a.Name(), truncate(msg.Text, 80))
 					r.publish(Event{Type: EventInbound, Message: msg})
 					if err := r.feed.Write(msg); err != nil {
 						log.Printf("[router] feed write error: %v", err)
@@ -137,7 +126,7 @@ func (r *Router) Run(ctx context.Context) error {
 		}()
 	}
 
-	// Route outbound: feed → all adapters
+	// Route outbound: feed (bus) → matching adapters
 	go func() {
 		for {
 			select {
@@ -150,7 +139,7 @@ func (r *Router) Run(ctx context.Context) error {
 				r.publish(Event{Type: EventOutbound, Message: msg})
 				r.mu.RLock()
 				for _, a := range r.adapters {
-					if msg.Channel == "" || msg.Channel == a.Name() || strings.HasPrefix(msg.Channel, a.Name()+":") {
+					if matchAdapter(msg.Channel, a.Name()) {
 						if err := a.Send(msg); err != nil {
 							log.Printf("[router] send to %s failed: %v", a.Name(), err)
 						}
@@ -162,8 +151,17 @@ func (r *Router) Run(ctx context.Context) error {
 	}()
 
 	<-ctx.Done()
-	r.History.Close()
 	return fmt.Errorf("router stopped: %w", ctx.Err())
+}
+
+// matchAdapter checks if a message's channel targets this adapter.
+// Empty channel = broadcast to all.
+// "discord:12345" matches adapter "discord".
+func matchAdapter(channel, adapterName string) bool {
+	if channel == "" {
+		return true
+	}
+	return channel == adapterName || strings.HasPrefix(channel, adapterName+":")
 }
 
 func truncate(s string, n int) string {

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
@@ -18,14 +17,13 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-// Adapter runs a WebSocket server for direct clients (e.g. Claxon Android).
+// Adapter runs a WebSocket server for direct clients (e.g. Claxon Android, dashboard).
 type Adapter struct {
 	addr     string
 	incoming chan si.Message
 	clients  map[*websocket.Conn]bool
 	mu       sync.RWMutex
-
-	router *si.Router
+	router   *si.Router
 }
 
 // New creates a WebSocket adapter listening on addr (e.g. ":8090").
@@ -37,7 +35,7 @@ func New(addr string) *Adapter {
 	}
 }
 
-// SetRouter gives the adapter access to the router for history and event bus.
+// SetRouter gives the adapter access to the router for the event bus.
 func (a *Adapter) SetRouter(r *si.Router) {
 	a.router = r
 }
@@ -48,12 +46,11 @@ func (a *Adapter) Name() string { return "websocket" }
 func (a *Adapter) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", a.handleWS)
-	mux.HandleFunc("/api/history", a.handleHistory)
 	mux.HandleFunc("/api/status", a.handleStatus)
 
 	srv := &http.Server{Addr: a.addr, Handler: mux}
 
-	// Subscribe to event bus and broadcast to all WS clients
+	// Subscribe to event bus and broadcast to all WS clients.
 	if a.router != nil {
 		events := a.router.Subscribe()
 		go func() {
@@ -132,7 +129,7 @@ func (a *Adapter) handleWS(w http.ResponseWriter, r *http.Request) {
 
 		var msg si.Message
 		if err := json.Unmarshal(data, &msg); err != nil {
-			// Treat as plain text
+			// Treat as plain text.
 			msg = si.Message{
 				Text:    string(data),
 				Channel: "websocket",
@@ -153,40 +150,7 @@ func (a *Adapter) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleHistory serves GET /api/history?limit=50&agent=claxon
-func (a *Adapter) handleHistory(w http.ResponseWriter, r *http.Request) {
-	if a.router == nil || a.router.History == nil {
-		http.Error(w, "history not available", http.StatusServiceUnavailable)
-		return
-	}
-
-	limit := 50
-	if s := r.URL.Query().Get("limit"); s != "" {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 {
-			limit = n
-		}
-	}
-	agent := r.URL.Query().Get("agent")
-
-	events := a.router.History.Recent(limit)
-
-	// Filter by agent if specified
-	if agent != "" {
-		filtered := make([]si.Event, 0, len(events))
-		for _, e := range events {
-			if e.Message.Agent == agent || e.Message.Author == agent {
-				filtered = append(filtered, e)
-			}
-		}
-		events = filtered
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	json.NewEncoder(w).Encode(events)
-}
-
-// handleStatus serves GET /api/status
+// handleStatus serves GET /api/status.
 func (a *Adapter) handleStatus(w http.ResponseWriter, r *http.Request) {
 	status := map[string]interface{}{
 		"adapters": []string{},
@@ -211,32 +175,8 @@ func (a *Adapter) handleStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(status)
 }
 
-// Send is called by the router for direct message routing.
-// Since the event bus broadcast already handles delivery to WS clients,
-// this is a no-op to avoid duplicate messages.
+// Send is a no-op — event bus broadcast handles WS delivery.
 func (a *Adapter) Send(msg si.Message) error {
-	// Event bus handles all delivery now — no-op to prevent duplicates.
-	return nil
-}
-
-func (a *Adapter) sendLegacy_unused(msg si.Message) error {
-	envelope := map[string]interface{}{
-		"type":    "response",
-		"message": msg,
-	}
-	data, err := json.Marshal(envelope)
-	if err != nil {
-		return err
-	}
-
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
-	for conn := range a.clients {
-		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			log.Printf("[websocket] write error: %v", err)
-		}
-	}
 	return nil
 }
 
