@@ -63,6 +63,16 @@ func (c *LogstackClient) LogEvent(e Event) {
 		return
 	}
 
+	content := map[string]interface{}{
+		"text":       e.Message.Text,
+		"author":     e.Message.Author,
+		"channel":    e.Message.Channel,
+		"message_id": e.Message.ID,
+	}
+	if e.Message.Meta != nil {
+		content["meta"] = e.Message.Meta
+	}
+
 	entry := LogEntry{
 		ID:        uuid.New().String(),
 		Timestamp: e.Message.Timestamp,
@@ -71,12 +81,7 @@ func (c *LogstackClient) LogEvent(e Event) {
 		Channel:   e.Message.Channel,
 		Level:     "info",
 		Type:      string(e.Type),
-		Content: map[string]interface{}{
-			"text":       e.Message.Text,
-			"author":     e.Message.Author,
-			"channel":    e.Message.Channel,
-			"message_id": e.Message.ID,
-		},
+		Content:   content,
 	}
 
 	if entry.Timestamp.IsZero() {
