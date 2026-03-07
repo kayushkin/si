@@ -64,20 +64,28 @@ func (c *LogstackClient) LogEvent(e Event) {
 	}
 
 	content := map[string]interface{}{
-		"text":       e.Message.Text,
-		"author":     e.Message.Author,
-		"channel":    e.Message.Channel,
-		"message_id": e.Message.ID,
+		"text":         e.Message.Text,
+		"author":       e.Message.Author,
+		"agent":        e.Message.Agent,
+		"orchestrator": e.Message.Orchestrator,
+		"channel":      e.Message.Channel,
+		"message_id":   e.Message.ID,
 	}
 	if e.Message.Meta != nil {
 		content["meta"] = e.Message.Meta
+	}
+
+	// Use the target agent for the log entry's agent field (not just author).
+	agent := e.Message.Agent
+	if agent == "" {
+		agent = e.Message.Author
 	}
 
 	entry := LogEntry{
 		ID:        uuid.New().String(),
 		Timestamp: e.Message.Timestamp,
 		Source:    "si",
-		Agent:     e.Message.Author,
+		Agent:     agent,
 		Channel:   e.Message.Channel,
 		Level:     "info",
 		Type:      string(e.Type),
