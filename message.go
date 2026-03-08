@@ -14,6 +14,8 @@ type Message struct {
 	MediaURL  string    `json:"media_url"` // optional: attachment URL
 	MediaData []byte    `json:"-"`         // optional: raw attachment bytes (not serialized)
 	Timestamp time.Time `json:"timestamp"`
+	Stream    string    `json:"stream,omitempty"` // "delta" for streaming chunks, "done" for final, empty for non-streamed
+	StreamID  string    `json:"stream_id,omitempty"` // groups deltas with their final message
 
 	// Metadata from inber (omitted when zero)
 	Meta *MessageMeta `json:"meta,omitempty"`

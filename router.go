@@ -69,9 +69,10 @@ func (r *Router) Unsubscribe(ch <-chan Event) {
 }
 
 // publish sends an event to all live subscribers and logs to logstack.
+// Stream deltas are forwarded to subscribers but NOT logged (only "done" messages are logged).
 func (r *Router) publish(e Event) {
-	// Log to logstack for persistent history.
-	if r.logstack != nil {
+	// Log to logstack for persistent history — skip stream deltas.
+	if r.logstack != nil && e.Message.Stream != "delta" {
 		r.logstack.LogEvent(e)
 	}
 
