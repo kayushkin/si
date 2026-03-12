@@ -22,4 +22,5 @@ Sí (shee) routes messages between external platforms and inber's I/O feeds. It 
 - Always build and test before pushing
 - Keep it simple — sí is a thin routing layer, not a framework
 - Use `git@ghk:kayushkin/si.git` for push
-- Deploy: `go build -o ~/bin/si ./cmd/si/`
+- **DO NOT deploy to prod yourself.** Push to main and tell Claxon — prod deploys go through `forge-deploy-prod`.
+- Test with staging envs: http://0.dev.kayushkin.com (see `/home/slava/.openclaw/workspace/DEPLOY-RULES.md`)
