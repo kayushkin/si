@@ -144,7 +144,7 @@ func (f *BusFeed) subscribeLoop() {
 }
 
 func (f *BusFeed) subscribe() error {
-	url := fmt.Sprintf("%s/subscribe?consumer=%s&topics=outbound,gateway&token=%s",
+	url := fmt.Sprintf("%s/subscribe?consumer=%s&topics=outbound,events,gateway&token=%s",
 		f.wsURL, f.consumer, f.token)
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
@@ -153,7 +153,7 @@ func (f *BusFeed) subscribe() error {
 	}
 	defer conn.Close()
 
-	log.Printf("[feed/bus] subscribed to outbound,gateway")
+	log.Printf("[feed/bus] subscribed to outbound,events,gateway")
 
 	for {
 		select {
@@ -178,16 +178,15 @@ func (f *BusFeed) subscribe() error {
 			continue
 		}
 
-		// Gateway events get forwarded as-is with event type "gateway".
-		if busMsg.Topic == "gateway" {
-			log.Printf("[feed/bus] ← gateway event")
-			// Wrap raw payload in a si.Message so the event bus can broadcast it.
-			gwMsg := si.Message{
+		// Gateway and events topics get forwarded as-is for dashboard consumption.
+		if busMsg.Topic == "gateway" || busMsg.Topic == "events" {
+			log.Printf("[feed/bus] ← %s event", busMsg.Topic)
+			evMsg := si.Message{
 				Text:      string(busMsg.Payload),
-				Channel:   "gateway",
+				Channel:   busMsg.Topic, // "gateway" or "events"
 				Timestamp: time.Now(),
 			}
-			f.inbound <- gwMsg
+			f.inbound <- evMsg
 			go f.ack(busMsg.Topic, busMsg.ID)
 			continue
 		}
