@@ -1,0 +1,327 @@
+.container {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.lastRefresh {
+  font-size: 0.875rem;
+  color: var(--text-muted, #888);
+}
+
+.loading {
+  text-align: center;
+  padding: 4rem;
+  color: var(--text-muted, #888);
+}
+
+.error {
+  color: #f87171;
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 2rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 0.25rem;
+  width: fit-content;
+}
+
+.tab {
+  padding: 0.5rem 1.25rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #888);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.tab:hover {
+  color: var(--text, #fff);
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.tabActive {
+  composes: tab;
+  background: rgba(139, 92, 246, 0.2);
+  color: #c4b5fd;
+}
+
+/* Node Grid */
+.nodeGrid {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.rowLabel {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted, #888);
+  margin-bottom: 0.25rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* Node Card */
+.nodeCard {
+  background: var(--bg-secondary, #1a1a2e);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  min-width: 160px;
+  transition: all 0.2s;
+  cursor: default;
+}
+
+.nodeCard:hover {
+  border-color: rgba(139, 92, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+.nodeTop {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.statusDot.running {
+  background: #4ade80;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.statusDot.stopped {
+  background: #f87171;
+}
+
+.statusDot.unknown {
+  background: #666;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.nodeName {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.nodeDetails {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nodePort {
+  font-size: 0.75rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: var(--text-muted, #888);
+}
+
+.typeBadge {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.typeBadge.service {
+  background: rgba(139, 92, 246, 0.15);
+  color: #c4b5fd;
+}
+
+.typeBadge.external {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+/* Connection Table */
+.connectionsSection {
+  margin-top: 1rem;
+}
+
+.sectionTitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.connTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.connTable th {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #888);
+  border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.connTable td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.08);
+}
+
+.connTable tr:hover td {
+  background: rgba(139, 92, 246, 0.05);
+}
+
+.arrow {
+  color: var(--text-muted, #888);
+  margin: 0 0.25rem;
+}
+
+.envVar {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  color: #c4b5fd;
+}
+
+.connValue {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted, #888);
+}
+
+.protoBadge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.protoBadge.http {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.protoBadge.ws {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+}
+
+.protoBadge.cli {
+  background: rgba(251, 146, 60, 0.2);
+  color: #fb923c;
+}
+
+.protoBadge.sqlite {
+  background: rgba(136, 136, 136, 0.2);
+  color: #aaa;
+}
+
+/* External Services */
+.externalsSection {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+.externalList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.externalChip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--bg-secondary, #1a1a2e);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.externalUrl {
+  font-size: 0.7rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: var(--text-muted, #888);
+}
+
+/* Route select dropdown */
+.routeSelect {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-family: monospace;
+  cursor: pointer;
+  max-width: 250px;
+  width: 100%;
+}
+
+.routeSelect:hover {
+  border-color: #58a6ff;
+}
+
+.routeSelect:focus {
+  outline: none;
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+}
+
+/* Reroute overlay */
+.rerouteOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 1.25rem;
+  z-index: 100;
+}

@@ -1,0 +1,84 @@
+.container { max-width: 900px; margin: 0 auto; padding: 0.5rem; height: 100%; overflow-y: auto; }
+
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+.title { font-size: 1.1rem; margin: 0; }
+.headerRight { display: flex; align-items: center; gap: 0.5rem; }
+.count { color: var(--text-secondary, #888); font-size: 0.75rem; }
+.addBtn { padding: 0.35rem 0.75rem; border: 1px solid var(--border, #444); border-radius: 6px; background: var(--bg-secondary, #1a1a2e); color: var(--text, #eee); cursor: pointer; font-size: 0.75rem; }
+.addBtn:hover { background: var(--bg-hover, #252542); }
+
+.addForm { display: flex; gap: 0.35rem; margin-bottom: 0.75rem; padding: 0.5rem; background: var(--bg-secondary, #1a1a2e); border-radius: 6px; border: 1px solid var(--border, #333); flex-wrap: wrap; }
+.input { flex: 1; min-width: 100px; padding: 0.4rem 0.5rem; border: 1px solid var(--border, #444); border-radius: 6px; background: var(--bg, #0d0d1a); color: var(--text, #eee); font-size: 0.8rem; }
+.select { padding: 0.4rem 0.5rem; border: 1px solid var(--border, #444); border-radius: 6px; background: var(--bg, #0d0d1a); color: var(--text, #eee); font-size: 0.8rem; }
+.saveBtn { padding: 0.4rem 0.75rem; border: none; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; font-size: 0.8rem; }
+.saveBtn:hover { background: #1d4ed8; }
+
+.section { margin-bottom: 1rem; }
+.sectionTitle { font-size: 0.9rem; margin: 0 0 0.5rem; display: flex; align-items: center; gap: 0.4rem; cursor: pointer; user-select: none; }
+.sectionTitle::before { content: '▾'; font-size: 0.7rem; opacity: 0.6; transition: transform 0.2s; }
+.sectionTitle.collapsed::before { transform: rotate(-90deg); }
+.sectionCount { font-size: 0.7rem; color: var(--text-secondary, #888); background: var(--bg-secondary, #1a1a2e); padding: 0.1rem 0.4rem; border-radius: 8px; }
+
+.section.collapsed .grid { display: none; }
+
+.grid { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
+
+.card { padding: 0.5rem 0.75rem; border-radius: 6px; border: 1px solid var(--border, #333); background: var(--bg-secondary, #1a1a2e); transition: border-color 0.2s; }
+.card:hover { border-color: var(--border-hover, #555); }
+.cardEnabled { }
+.cardDisabled { opacity: 0.5; }
+
+.cardHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.15rem; }
+.cardName { font-weight: 600; font-size: 0.85rem; }
+.cardDesc { color: var(--text-secondary, #888); font-size: 0.7rem; margin: 0.15rem 0; line-height: 1.3; }
+.cardActions { display: flex; gap: 0.35rem; margin-top: 0.35rem; }
+.editBtn, .deleteBtn { background: none; border: none; cursor: pointer; font-size: 0.75rem; padding: 0.15rem 0.3rem; border-radius: 4px; opacity: 0.6; }
+.editBtn:hover, .deleteBtn:hover { opacity: 1; background: var(--bg-hover, #252542); }
+
+.enabledBadge { font-size: 0.65rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 8px; border: none; cursor: pointer; letter-spacing: 0.03em; }
+.badgeOn { background: #166534; color: #4ade80; }
+.badgeOff { background: #7f1d1d; color: #fca5a5; }
+
+.editForm { display: flex; flex-direction: column; gap: 0.35rem; }
+.editName { font-weight: 600; font-size: 0.85rem; margin-bottom: 0.15rem; }
+.editActions { display: flex; gap: 0.35rem; }
+.cancelBtn { padding: 0.35rem 0.6rem; border: 1px solid var(--border, #444); border-radius: 6px; background: transparent; color: var(--text, #eee); cursor: pointer; font-size: 0.8rem; }
+
+.empty { text-align: center; padding: 2rem 1rem; color: var(--text-secondary, #888); }
+.errorMsg { color: #ef4444; font-size: 0.85rem; }
+
+/* Desktop */
+@media (min-width: 641px) {
+  .container { padding: 1rem; }
+  
+  .header { margin-bottom: 1.5rem; }
+  .title { font-size: 1.4rem; }
+  .headerRight { gap: 1rem; }
+  .count { font-size: 0.9rem; }
+  .addBtn { padding: 0.4rem 1rem; font-size: 0.85rem; }
+
+  .addForm { gap: 0.5rem; margin-bottom: 1.5rem; padding: 1rem; }
+  .input { min-width: 120px; padding: 0.5rem 0.75rem; font-size: 0.85rem; }
+  .select { padding: 0.5rem 0.75rem; font-size: 0.85rem; }
+  .saveBtn { padding: 0.5rem 1rem; font-size: 0.85rem; }
+
+  .section { margin-bottom: 2rem; }
+  .sectionTitle { font-size: 1.1rem; margin-bottom: 0.75rem; gap: 0.5rem; }
+  .sectionCount { font-size: 0.8rem; padding: 0.1rem 0.5rem; }
+
+  .grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem; }
+
+  .card { padding: 0.75rem 1rem; border-radius: 8px; }
+  .cardName { font-size: 0.95rem; }
+  .cardDesc { font-size: 0.8rem; }
+  .cardActions { gap: 0.5rem; margin-top: 0.5rem; }
+  .editBtn, .deleteBtn { font-size: 0.85rem; padding: 0.2rem 0.4rem; }
+  .enabledBadge { font-size: 0.7rem; padding: 0.15rem 0.5rem; letter-spacing: 0.05em; }
+
+  .editForm { gap: 0.5rem; }
+  .editName { font-size: 0.95rem; margin-bottom: 0.25rem; }
+  .editActions { gap: 0.5rem; }
+  .cancelBtn { padding: 0.4rem 0.75rem; font-size: 0.85rem; }
+
+  .empty { padding: 3rem 1rem; }
+}

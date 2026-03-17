@@ -1,0 +1,166 @@
+.container {
+  padding: 2rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  font-size: 1.75rem;
+  color: var(--text);
+  margin: 0;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.summary {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.refreshBtn {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background 0.15s;
+}
+
+.refreshBtn:hover {
+  background: var(--border);
+}
+
+.lastCheck {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.errorMsg {
+  color: #e74c3c;
+}
+
+.section {
+  margin-bottom: 2rem;
+}
+
+.sectionTitle {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+.card {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  overflow: hidden;
+  transition: box-shadow 0.15s;
+}
+
+.card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.cardUp {
+  border-left: 3px solid #2ecc71;
+}
+
+.cardDown {
+  border-left: 3px solid #e74c3c;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+}
+
+.cardIcon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.cardInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.cardName {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+  display: block;
+}
+
+.cardPort {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.cardLatency {
+  font-size: 0.8rem;
+  font-family: monospace;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.cardDetail {
+  padding: 0.5rem 1rem 0.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+}
+
+.detailRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.detailKey {
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.detailVal {
+  color: var(--text);
+  font-family: monospace;
+  text-align: right;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+}

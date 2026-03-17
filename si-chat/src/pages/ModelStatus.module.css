@@ -1,0 +1,434 @@
+.container {
+  padding: 2rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  font-size: 1.75rem;
+  color: var(--text);
+  margin: 0;
+}
+
+.testAllBtn {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.15s;
+}
+
+.testAllBtn:hover:not(:disabled) {
+  background: var(--border);
+}
+
+.testAllBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.errorMsg {
+  color: #e74c3c;
+}
+
+.table {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.headerRow {
+  display: grid;
+  grid-template-columns: 90px 1.5fr 0.7fr 0.4fr 0.9fr 0.8fr 0.9fr 1.1fr 50px;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-surface);
+  border-bottom: 2px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 90px 1.5fr 0.7fr 0.4fr 0.9fr 0.8fr 0.9fr 1.1fr 50px;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  align-items: center;
+  font-size: 0.875rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.disabled {
+  opacity: 0.5;
+}
+
+.colStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.statusIcon {
+  font-size: 1rem;
+}
+
+.enabledBadge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.badgeOn {
+  background: #2ecc71;
+  color: #fff;
+}
+
+.badgeOn:hover {
+  background: #27ae60;
+}
+
+.badgeOff {
+  background: var(--border);
+  color: var(--text-muted);
+}
+
+.badgeOff:hover {
+  background: #e74c3c;
+  color: #fff;
+}
+
+.colName {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.modelId {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.testOk {
+  font-size: 0.7rem;
+  color: #2ecc71;
+  font-weight: 600;
+}
+
+.testErr {
+  font-size: 0.7rem;
+  color: #e74c3c;
+}
+
+.colProvider,
+.colPriority,
+.colCost,
+.colResponse,
+.colLast,
+.colError,
+.colAction {
+  font-size: 0.825rem;
+}
+
+.colPriority {
+  font-family: monospace;
+}
+
+.colCost {
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+
+.lastMs {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.errorText {
+  color: #e74c3c;
+  font-size: 0.75rem;
+}
+
+.testBtn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+
+.testBtn:hover:not(:disabled) {
+  background: var(--border);
+}
+
+.testBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Health state borders */
+.healthy {
+  border-left: 3px solid #2ecc71;
+}
+
+.error {
+  border-left: 3px solid #e74c3c;
+}
+
+.stale {
+  border-left: 3px solid #f39c12;
+}
+
+.unknown {
+  border-left: 3px solid var(--border);
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .headerRow,
+  .row {
+    grid-template-columns: 80px 1fr 0.6fr 1fr 50px;
+  }
+
+  .colProvider,
+  .colPriority,
+  .colCost,
+  .colError {
+    display: none;
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .container {
+    padding: 0.5rem;
+    overflow-x: hidden;
+  }
+
+  .header {
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .title {
+    font-size: 1.1rem;
+  }
+
+  .testAllBtn {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.75rem;
+  }
+
+  .table {
+    border-radius: 8px;
+  }
+
+  .headerRow {
+    display: none;
+  }
+
+  .row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .colStatus {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .colName {
+    width: 100%;
+    font-size: 0.85rem;
+  }
+
+  .colName strong {
+    font-size: 0.9rem;
+  }
+
+  /* Hide these on mobile, show in compact format instead */
+  .colProvider,
+  .colPriority,
+  .colCost,
+  .colResponse,
+  .colLast,
+  .colError,
+  .colAction {
+    display: none;
+  }
+
+  /* Show inline meta row */
+  .row::after {
+    content: '';
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .disabled {
+    opacity: 0.5;
+  }
+
+  .healthy,
+  .error,
+  .stale,
+  .unknown {
+    border-left-width: 2px;
+  }
+}
+
+/* Credentials section */
+.credGroup {
+  margin-bottom: 1rem;
+}
+
+.credProvider {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #888);
+  margin: 0.5rem 0 0.25rem;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border, #333);
+  margin: 1.5rem 0;
+}
+
+/* Model group wrapper (model row + cred sub-rows) */
+.modelGroup {
+  display: contents;
+}
+
+/* Credential sub-rows under each model */
+.credSubRows {
+  display: flex;
+  flex-direction: column;
+}
+
+.credSubRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 1rem 0.35rem 2rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom: 1px solid var(--border);
+}
+
+.credSubRow:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.credSubIcon {
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  width: 1.2em;
+}
+
+.credSubAuth {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.credSubLabel {
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+}
+
+.credSubType {
+  font-family: monospace;
+  font-size: 0.7rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.credSubPri {
+  font-family: monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.credSubExpiry {
+  font-size: 0.7rem;
+  color: #f39c12;
+  flex-shrink: 0;
+}
+
+.credSubErr {
+  font-size: 0.7rem;
+  color: #e74c3c;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.credSubUsed {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Mobile: credential sub-rows */
+@media (max-width: 640px) {
+  .credSubRow {
+    padding: 0.3rem 0.75rem 0.3rem 1.5rem;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .credSubType,
+  .credSubPri {
+    font-size: 0.65rem;
+  }
+}
