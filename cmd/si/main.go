@@ -29,21 +29,22 @@ func main() {
 		f = feed.NewEcho()
 
 	case "bus":
-		busURL := os.Getenv("SI_BUS_URL")
-		if busURL == "" {
-			busURL = "http://127.0.0.1:8100"
+		natsURL := os.Getenv("NATS_URL")
+		if natsURL == "" {
+			natsURL = "nats://localhost:4222"
 		}
-		busToken := os.Getenv("SI_BUS_TOKEN")
-		busFeed := feed.NewBusFeed(feed.BusFeedConfig{
-			BusURL:   busURL,
-			Token:    busToken,
+		natsFeed := feed.NewNATSFeed(feed.NATSFeedConfig{
+			NATSURL:  natsURL,
 			Consumer: "si",
 		})
-		if err := busFeed.Start(); err != nil {
-			log.Fatalf("[sí] failed to connect to bus: %v", err)
+		if err := natsFeed.Start(feed.NATSFeedConfig{
+			NATSURL:  natsURL,
+			Consumer: "si",
+		}); err != nil {
+			log.Fatalf("[sí] failed to connect to NATS: %v", err)
 		}
-		f = busFeed
-		log.Printf("[sí] using bus feed via %s", busURL)
+		f = natsFeed
+		log.Printf("[sí] using NATS feed via %s", natsURL)
 
 	default:
 		log.Fatalf("unknown SI_FEED mode: %s (use: bus, echo)", feedMode)

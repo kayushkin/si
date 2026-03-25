@@ -7,6 +7,7 @@ import Agents from './pages/Agents'
 import Usage from './pages/Usage'
 import Forge from './pages/Forge'
 import Topology from './pages/Topology'
+import InberConfig from './pages/InberConfig'
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="services" element={<Services />} />
         <Route path="forge" element={<Forge />} />
         <Route path="topology" element={<Topology />} />
+        <Route path="inber" element={<InberConfig />} />
       </Route>
     </Routes>
   )

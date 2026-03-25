@@ -30,6 +30,7 @@ export default function DashboardLayout() {
           <NavLink to="/services" className={({isActive}) => isActive ? styles.navActive : styles.navLink} onClick={() => setNavOpen(false)}>📡 Services</NavLink>
           <NavLink to="/forge" className={({isActive}) => isActive ? styles.navActive : styles.navLink} onClick={() => setNavOpen(false)}>🔨 Forge</NavLink>
           <NavLink to="/topology" className={({isActive}) => isActive ? styles.navActive : styles.navLink} onClick={() => setNavOpen(false)}>🕸️ Topology</NavLink>
+          <NavLink to="/inber" className={({isActive}) => isActive ? styles.navActive : styles.navLink} onClick={() => setNavOpen(false)}>🌿 Inber</NavLink>
         </nav>
       </header>
 
