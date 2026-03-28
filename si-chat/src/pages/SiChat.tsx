@@ -23,7 +23,7 @@ interface MessageMeta {
 
 interface Message {
   id: string
-  role: 'user' | 'assistant' | 'system'
+  role: 'user' | 'assistant' | 'system' | 'error'
   content: string
   timestamp: string
   agent?: string
@@ -31,6 +31,10 @@ interface Message {
   targetAgent?: string // the agent this message is for/from (not the human author)
   meta?: MessageMeta
   thinking?: string // accumulated thinking/reasoning text
+  error?: {
+    error: string
+    code?: string
+  }
 }
 
 interface AgentInfo {
@@ -252,6 +256,15 @@ function formatTokens(n: number): string {
   return `${n}`
 }
 
+function formatElapsedTime(ms: number): string {
+  if (ms < 1000) return `${Math.floor(ms / 100) / 10}s`
+  const seconds = Math.floor(ms / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return `${minutes}m ${remainingSeconds}s`
+}
+
 // Utility functions kept for future use
 // function tokensPerSecond(meta: MessageMeta) { ... }
 // function cacheHitRate(meta: MessageMeta) { ... }
@@ -280,6 +293,10 @@ export default function SiChat() {
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map())
   const [inactiveAgentsOpen, setInactiveAgentsOpen] = useState(false)
   const [recentlyCompleted, setRecentlyCompleted] = useState<Set<string>>(new Set())
+  
+  // New request tracking state
+  const [requestStartTime, setRequestStartTime] = useState<number | null>(null)
+  const [requestElapsedTime, setRequestElapsedTime] = useState<number>(0)
 
   const selectedRef = useRef(agentKey('claxon', 'inber'))
   const seenIds = useRef<Set<string>>(new Set())
@@ -288,6 +305,7 @@ export default function SiChat() {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const userScrolledUpRef = useRef(false)
+  const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
 
   // Fetch agents from registry
   useEffect(() => {
@@ -536,13 +554,50 @@ export default function SiChat() {
 
         if (msg.type === 'event' && msg.message) {
           const data = msg.message
-          const isInbound = msg.event_type === 'inbound'
 
           // Handle status events (granular progress indicators)
           if (data.stream === 'status') {
             setResponseStatus(data.text || 'received')
             return
           }
+        }
+
+        // Handle new inber status events (Fionn's new format)
+        if (msg.type === 'status') {
+          if (msg.status === 'processing') {
+            setResponseStatus('processing')
+          }
+          return
+        }
+
+        // Handle new inber error events (Fionn's new format)  
+        if (msg.type === 'error') {
+          const errorInfo = {
+            error: msg.error || 'An error occurred',
+            code: msg.code
+          }
+          setResponseStatus(null)
+          setRequestStartTime(null)
+
+          // Add error message to conversation
+          const [selAgent] = selectedRef.current.split(':')
+          const errorMsg: Message = {
+            id: Date.now().toString(),
+            role: 'error',
+            content: errorInfo.error,
+            timestamp: new Date().toISOString(),
+            agent: 'system',
+            orchestrator: '',
+            targetAgent: selAgent,
+            error: errorInfo,
+          }
+          setAllMessages(prev => [...prev, errorMsg])
+          return
+        }
+
+        if (msg.type === 'event' && msg.message) {
+          const data = msg.message
+          const isInbound = msg.event_type === 'inbound'
 
           // Clear status on any real streaming event
           if (data.stream && data.stream_id && data.stream !== 'status') {
@@ -674,6 +729,9 @@ export default function SiChat() {
           if (data.stream === 'done' && data.stream_id) {
             const streamId = data.stream_id
             setActiveStreams(prev => { const next = new Set(prev); next.delete(streamId); return next })
+            // Clear request tracking when we get a complete response
+            setRequestStartTime(null)
+            setResponseStatus(null)
             const targetAgent = data.author || data.agent
             // Increment unread if this message is for a different agent
             if (targetAgent) {
@@ -720,9 +778,10 @@ export default function SiChat() {
             return
           }
 
-          // Clear status on any non-streamed assistant response
+          // Clear status and request tracking on any non-streamed assistant response
           if (!isInbound) {
             setResponseStatus(null)
+            setRequestStartTime(null)
           }
 
           // Normal non-streamed message.
@@ -793,6 +852,11 @@ export default function SiChat() {
   const send = useCallback(() => {
     if (!input.trim() || !connected || !wsRef.current) return
 
+    // Start request tracking
+    const now = Date.now()
+    setRequestStartTime(now)
+    setRequestElapsedTime(0)
+
     // Don't do optimistic update - let WebSocket broadcast drive all message updates
     // This prevents duplicate messages (optimistic + broadcast)
     const [selAgent, selOrch] = selected.split(':')
@@ -806,7 +870,7 @@ export default function SiChat() {
 
     setInput('')
     setResponseStatus('sent')
-  }, [input, connected])
+  }, [input, connected, selected])
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -954,6 +1018,55 @@ export default function SiChat() {
     if (recentlyCompleted.has(agentId)) return 'completed'
     return 'idle'
   }
+
+  // Timer effect for request tracking
+  useEffect(() => {
+    if (requestStartTime) {
+      timerRef.current = setInterval(() => {
+        const elapsed = Date.now() - requestStartTime
+        setRequestElapsedTime(elapsed)
+
+        // Auto-timeout after 5 minutes (300,000ms) to match inber's timeout
+        if (elapsed >= 300000) {
+          const [selAgent] = selectedRef.current.split(':')
+          const timeoutMsg: Message = {
+            id: Date.now().toString(),
+            role: 'error',
+            content: 'Request timed out after 5 minutes. The agent may still be processing your request, but no response was received within the expected time.',
+            timestamp: new Date().toISOString(),
+            agent: 'system',
+            orchestrator: '',
+            targetAgent: selAgent,
+            error: {
+              error: 'Request timeout',
+              code: 'TIMEOUT'
+            },
+          }
+          
+          setAllMessages(prev => [...prev, timeoutMsg])
+          setRequestStartTime(null)
+          setResponseStatus(null)
+          
+          if (timerRef.current) {
+            clearInterval(timerRef.current)
+            timerRef.current = undefined
+          }
+        }
+      }, 100) // Update every 100ms for smooth timer
+
+      return () => {
+        if (timerRef.current) {
+          clearInterval(timerRef.current)
+          timerRef.current = undefined
+        }
+      }
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = undefined
+      }
+    }
+  }, [requestStartTime])
 
   // Track recently completed agents (fade checkmark after 5s)
   useEffect(() => {
@@ -1308,6 +1421,15 @@ export default function SiChat() {
                     )}
                   </div>
                 )}
+                {msg.role === 'error' && (
+                  <div className={styles.errorHeader}>
+                    <span className={styles.errorIcon}>⚠️</span>
+                    <span className={styles.errorLabel}>Error</span>
+                    {msg.error?.code && (
+                      <span className={styles.errorCode}>{msg.error.code}</span>
+                    )}
+                  </div>
+                )}
                 {/* Split layout: text left, tools right during streaming */}
                 {activeStreams.has(msg.id) && msg.meta?.tools?.length ? (
                   <div className={styles.streamingSplit}>
@@ -1520,7 +1642,7 @@ export default function SiChat() {
               </div>
                 )
               })}
-            {responseStatus && (
+            {(responseStatus || requestStartTime) && (
               <div className={`${styles.message} ${styles.assistant}`}>
                 <div className={styles.statusIndicator}>
                   <span className={styles.statusDotPulse} />
@@ -1528,7 +1650,15 @@ export default function SiChat() {
                     {responseStatus === 'sent' && 'Sending to bus…'}
                     {responseStatus === 'received' && `${currentAgentInfo?.emoji || '⚙️'} ${currentAgentInfo?.name || 'Agent'} received — loading context…`}
                     {responseStatus === 'api_call' && `${currentAgentInfo?.emoji || '⚙️'} ${currentAgentInfo?.name || 'Agent'} calling API — awaiting response…`}
+                    {responseStatus === 'processing' && `${currentAgentInfo?.emoji || '⚙️'} ${currentAgentInfo?.name || 'Agent'} processing request…`}
                   </span>
+                  {requestStartTime && (
+                    <span className={`${styles.requestTimer} ${requestElapsedTime > 60000 ? styles.requestTimerWarning : ''} ${requestElapsedTime > 300000 ? styles.requestTimerError : ''}`}>
+                      ⏱ {formatElapsedTime(requestElapsedTime)}
+                      {requestElapsedTime > 60000 && requestElapsedTime < 300000 && ' (slow response)'}
+                      {requestElapsedTime >= 300000 && ' (timeout warning)'}
+                    </span>
+                  )}
                 </div>
               </div>
             )}

@@ -1856,3 +1856,54 @@
     max-width: 95%;
   }
 }
+
+/* Request tracking styles */
+.requestTimer {
+  margin-left: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.requestTimerWarning {
+  color: var(--warning, #f59e0b);
+}
+
+.requestTimerError {
+  color: var(--error, #ef4444);
+  font-weight: 600;
+}
+
+/* Error message styles */
+.error {
+  background: var(--bg-error, #fef2f2);
+  border-left: 4px solid var(--error, #ef4444);
+  margin: 0.5rem 0;
+}
+
+.errorHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  padding: 0.25rem 0;
+}
+
+.errorIcon {
+  font-size: 1rem;
+}
+
+.errorLabel {
+  font-weight: 600;
+  color: var(--error, #ef4444);
+  font-size: 0.9rem;
+}
+
+.errorCode {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
