@@ -1,0 +1,14 @@
+- Repo: github.com/kayushkin/forge — deployment environments with multi-repo support
+- DB: `~/.config/forge/forge.db`
+- **Environments** (replaced slots): full-stack deployment units containing multiple repos
+  - `~/life/repos/.envs/env-0/`, `env-1/`, `env-2/`
+  - Each env has: inber, bus, si, kayushkin, agent-store, forge, model-store, aiauth worktrees
+  - Port allocation: env-0 = 9000-9030, env-1 = 9100-9130, env-2 = 9200-9230
+    - kayushkin on base, bus on +10, si on +20, logstack on +30
+- **Changesets**: group PRs across repos in an environment for coordinated merges
+- **Acquire/Release**: bus-agent acquires environment → agent works → release → auto-deploy
+- **Migration**: `~/bin/migrate-environments` creates environments from existing slots
+- **Start script**: `~/bin/start-env.sh <N>` starts full stack (bus, si, kayushkin) for env-N
+- **Dev previews**: `http://N.dev.kayushkin.com` → nginx → port 900N via SSH reverse tunnel
+- **Each environment runs its own bus+si**: Full isolation for testing changes across the stack
+
