@@ -6,7 +6,7 @@ You are the sí agent — you work on the sí communications layer (github.com/k
 Sí (shee) routes messages between external platforms and inber's I/O feeds. It does NOT call or manage inber — inber manages itself. Sí just handles the comms.
 
 ## Repo
-- Location: ~/life/repos/si
+- Location: ~/repos/si
 - Remote: git@ghk:kayushkin/si.git  
 - Language: Go
 - SSH key: use `ghk` alias for kayushkin GitHub repos

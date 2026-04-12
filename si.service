@@ -5,10 +5,10 @@ After=network.target
 [Service]
 Type=simple
 User=slava
-WorkingDirectory=/home/slava/life/repos/si
+WorkingDirectory=/home/slava/repos/si
 Environment=SI_FEED=inber
 Environment=SI_WS_ADDR=:8090
-ExecStart=/home/slava/life/repos/si/si
+ExecStart=/home/slava/repos/si/si
 Restart=on-failure
 RestartSec=5
 

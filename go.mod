@@ -2,14 +2,16 @@ module github.com/kayushkin/si
 
 go 1.24.0
 
+replace github.com/kayushkin/bus => ../bus
+
 require (
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/kayushkin/bus v0.0.0-00010101000000-000000000000
 )
 
 require (
-	github.com/kayushkin/bus v0.0.0-20260324033633-3ea7fecfe01e // indirect
 	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/nats-io/nats.go v1.49.0 // indirect
 	github.com/nats-io/nkeys v0.4.12 // indirect

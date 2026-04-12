@@ -3,142 +3,226 @@ package feed
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/kayushkin/bus"
+	"github.com/kayushkin/bus/messages"
 	si "github.com/kayushkin/si"
 )
 
-// NATSFeed connects si to the NATS message bus.
-// All inbound messages publish to "inbound" topic.
-// Subscribes to "outbound" topic for agent responses.
-type NATSFeed struct {
+// NatsFeed connects si to NATS as a stateless protocol adapter.
+// Publishes inbound messages to chat.inbound.<orchestrator>.
+// Subscribes to chat.stream for streaming events and chat.outbound for completed responses.
+type NatsFeed struct {
 	client   *bus.Client
 	inbound  chan si.Message
+	outbound chan si.Message
 	ctx      context.Context
 	cancel   context.CancelFunc
-	consumer string
 }
 
-// NATSFeedConfig configures the NATS feed.
-type NATSFeedConfig struct {
-	NATSURL  string // e.g., "nats://localhost:4222"
-	Consumer string // consumer ID for this si instance
+type NatsFeedConfig struct {
+	NatsURL string // default nats://localhost:4222
 }
 
-// NewNATSFeed creates a feed that connects to the NATS message bus.
-func NewNATSFeed(cfg NATSFeedConfig) *NATSFeed {
+func NewNatsFeed(cfg NatsFeedConfig) (*NatsFeed, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	consumer := cfg.Consumer
-	if consumer == "" {
-		consumer = "si"
-	}
-
-	return &NATSFeed{
-		inbound:  make(chan si.Message, 64),
-		ctx:      ctx,
-		cancel:   cancel,
-		consumer: consumer,
-	}
-}
-
-// Start connects to NATS and begins processing.
-func (f *NATSFeed) Start(cfg NATSFeedConfig) error {
-	natsURL := cfg.NATSURL
-	if natsURL == "" {
-		natsURL = "nats://localhost:4222"
-	}
-
 	client, err := bus.Connect(bus.Options{
-		URL:  natsURL,
-		Name: f.consumer,
+		URL:  cfg.NatsURL,
+		Name: "si",
 	})
 	if err != nil {
-		return err
+		cancel()
+		return nil, fmt.Errorf("nats connect: %w", err)
 	}
-	f.client = client
 
-	// Subscribe to outbound messages from agents
-	subjects := []string{"outbound", "events", "gateway"}
-	for _, subject := range subjects {
-		_, err := f.client.Subscribe(subject, f.handleMessage)
-		if err != nil {
-			return err
+	return &NatsFeed{
+		client:   client,
+		inbound:  make(chan si.Message, 64),
+		outbound: make(chan si.Message, 64),
+		ctx:      ctx,
+		cancel:   cancel,
+	}, nil
+}
+
+func (f *NatsFeed) Start() error {
+	// Subscribe to chat.stream for streaming events (text, thinking, tool, done, etc.)
+	_, err := f.client.Subscribe("chat.stream", func(subject string, data []byte) {
+		var delta messages.ChatDelta
+		if err := json.Unmarshal(data, &delta); err != nil {
+			log.Printf("[feed/nats] stream unmarshal error: %v", err)
+			return
+		}
+
+		msg := si.Message{
+			Agent:        delta.Agent,
+			Orchestrator: delta.Orchestrator,
+			Timestamp:    time.Now(),
+		}
+
+		switch delta.Type {
+		case "text":
+			msg.Text = delta.Text
+			msg.Stream = "delta"
+			msg.StreamID = delta.SessionID
+		case "thinking":
+			msg.Text = delta.Text
+			msg.Stream = "thinking"
+			msg.StreamID = delta.SessionID
+		case "tool":
+			msg.Text = delta.Text
+			msg.Stream = "tool_call"
+			msg.StreamID = delta.SessionID
+			if delta.Tool != "" {
+				msg.Meta = &si.MessageMeta{
+					Tools: []si.ToolEvent{{Tool: delta.Tool, Input: delta.ToolInput}},
+				}
+			}
+		case "tool_result":
+			msg.Text = delta.Text
+			msg.Stream = "tool_result"
+			msg.StreamID = delta.SessionID
+			if delta.Tool != "" {
+				msg.Meta = &si.MessageMeta{
+					Tools: []si.ToolEvent{{Tool: delta.Tool, Output: delta.ToolOutput}},
+				}
+			}
+		case "done":
+			msg.Stream = "done"
+			msg.StreamID = delta.SessionID
+			if delta.Stats != nil {
+				msg.Meta = &si.MessageMeta{
+					InputTokens:  delta.Stats.InputTokens,
+					OutputTokens: delta.Stats.OutputTokens,
+					Cost:         delta.Stats.Cost,
+					DurationMs:   int64(delta.Stats.DurationMs),
+					Model:        delta.Stats.Model,
+					Turn:         delta.Stats.Turn,
+					ToolCalls:    delta.Stats.ToolCalls,
+				}
+			}
+		default:
+			// Forward other event types as-is
+			msg.Text = string(data)
+			msg.Channel = delta.Type
+		}
+
+		log.Printf("[feed/nats] ← stream %s [%s/%s]", delta.Type, delta.Agent, delta.Orchestrator)
+		f.inbound <- msg
+	})
+	if err != nil {
+		return fmt.Errorf("subscribe chat.stream: %w", err)
+	}
+
+	// Subscribe to chat.outbound via JetStream for completed responses
+	err = f.client.JetSubscribe("chat.outbound", "si", func(subject string, data []byte) {
+		var out messages.ChatOutbound
+		if err := json.Unmarshal(data, &out); err != nil {
+			log.Printf("[feed/nats] outbound unmarshal error: %v", err)
+			return
+		}
+
+		msg := si.Message{
+			Text:         out.Text,
+			Author:       out.Agent,
+			Agent:        out.Agent,
+			Orchestrator: out.Orchestrator,
+			Timestamp:    out.Timestamp,
+		}
+		if out.Stats != nil {
+			msg.Meta = &si.MessageMeta{
+				InputTokens:  out.Stats.InputTokens,
+				OutputTokens: out.Stats.OutputTokens,
+				Cost:         out.Stats.Cost,
+				DurationMs:   int64(out.Stats.DurationMs),
+				Model:        out.Stats.Model,
+				Turn:         out.Stats.Turn,
+				ToolCalls:    out.Stats.ToolCalls,
+			}
+		}
+
+		log.Printf("[feed/nats] ← outbound [%s] %s", out.Agent, truncateNats(out.Text, 50))
+		f.inbound <- msg
+	})
+	if err != nil {
+		return fmt.Errorf("jetsubscribe chat.outbound: %w", err)
+	}
+
+	// Subscribe to health.> for healthcheck events
+	_, err = f.client.Subscribe("health.>", func(subject string, data []byte) {
+		msg := si.Message{
+			Text:      string(data),
+			Channel:   "events",
+			Timestamp: time.Now(),
+		}
+		log.Printf("[feed/nats] ← %s event", subject)
+		f.inbound <- msg
+	})
+	if err != nil {
+		return fmt.Errorf("subscribe health.>: %w", err)
+	}
+
+	go f.publishLoop()
+
+	log.Printf("[feed/nats] connected and subscribed")
+	return nil
+}
+
+func (f *NatsFeed) publishLoop() {
+	for {
+		select {
+		case <-f.ctx.Done():
+			return
+		case msg := <-f.outbound:
+			orchestrator := msg.Orchestrator
+			if orchestrator == "" {
+				orchestrator = "claude-code"
+			}
+			subject := "chat.inbound." + orchestrator
+
+			inbound := messages.ChatInbound{
+				Text:         msg.Text,
+				Author:       msg.Author,
+				Agent:        msg.Agent,
+				Orchestrator: orchestrator,
+				Channel:      msg.Channel,
+				Timestamp:    time.Now(),
+			}
+
+			if err := f.client.Publish(subject, inbound); err != nil {
+				log.Printf("[feed/nats] publish error: %v", err)
+				continue
+			}
+
+			log.Printf("[feed/nats] → %s [%s] %s: %s",
+				subject, msg.Channel, msg.Author, truncateNats(msg.Text, 50))
 		}
 	}
-
-	log.Printf("[feed/nats] connected to %s as %s", natsURL, f.consumer)
-	return nil
 }
 
-// Write publishes a message to the "inbound" topic.
-func (f *NATSFeed) Write(msg si.Message) error {
-	payload, err := json.Marshal(msg)
-	if err != nil {
-		return err
+func (f *NatsFeed) Write(msg si.Message) error {
+	select {
+	case f.outbound <- msg:
+		return nil
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("publish timeout")
 	}
-
-	if err := f.client.Publish("inbound", payload); err != nil {
-		return err
-	}
-
-	log.Printf("[feed/nats] → inbound [%s] %s: %s",
-		msg.Channel, msg.Author, truncateNATS(msg.Text, 50))
-	return nil
 }
 
-// Read returns the channel of responses from agents.
-func (f *NATSFeed) Read() <-chan si.Message {
+func (f *NatsFeed) Read() <-chan si.Message {
 	return f.inbound
 }
 
-// Close shuts down the feed.
-func (f *NATSFeed) Close() error {
+func (f *NatsFeed) Close() error {
 	f.cancel()
-	if f.client != nil {
-		f.client.Close()
-	}
+	f.client.Close()
 	return nil
 }
 
-// handleMessage processes incoming messages from NATS.
-func (f *NATSFeed) handleMessage(subject string, payload []byte) {
-	// Gateway and events topics get forwarded as-is for dashboard consumption.
-	if subject == "gateway" || subject == "events" {
-		log.Printf("[feed/nats] ← %s event", subject)
-		evMsg := si.Message{
-			Text:      string(payload),
-			Channel:   subject, // "gateway" or "events"
-			Timestamp: time.Now(),
-		}
-		select {
-		case f.inbound <- evMsg:
-		default:
-			// drop if channel is full
-		}
-		return
-	}
-
-	var msg si.Message
-	if err := json.Unmarshal(payload, &msg); err != nil {
-		log.Printf("[feed/nats] payload unmarshal error: %v", err)
-		return
-	}
-
-	log.Printf("[feed/nats] ← outbound [%s] %s", msg.Channel, truncateNATS(msg.Text, 50))
-	
-	select {
-	case f.inbound <- msg:
-	case <-f.ctx.Done():
-		return
-	default:
-		// drop if channel is full
-	}
-}
-
-func truncateNATS(s string, n int) string {
+func truncateNats(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}

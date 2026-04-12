@@ -16,10 +16,10 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	// SI_FEED=bus (default) or echo (test).
+	// SI_FEED=nats (default), bus (legacy), or echo (test).
 	feedMode := os.Getenv("SI_FEED")
 	if feedMode == "" {
-		feedMode = "bus"
+		feedMode = "nats"
 	}
 
 	var f si.Feed
@@ -27,6 +27,23 @@ func main() {
 	case "echo":
 		log.Println("[sí] using echo feed (test mode)")
 		f = feed.NewEcho()
+
+	case "nats":
+		natsURL := os.Getenv("NATS_URL")
+		if natsURL == "" {
+			natsURL = "nats://localhost:4222"
+		}
+		natsFeed, err := feed.NewNatsFeed(feed.NatsFeedConfig{
+			NatsURL: natsURL,
+		})
+		if err != nil {
+			log.Fatalf("[sí] failed to connect to nats: %v", err)
+		}
+		if err := natsFeed.Start(); err != nil {
+			log.Fatalf("[sí] failed to start nats feed: %v", err)
+		}
+		f = natsFeed
+		log.Printf("[sí] using nats feed via %s", natsURL)
 
 	case "bus":
 		natsURL := os.Getenv("NATS_URL")
@@ -47,7 +64,7 @@ func main() {
 		log.Printf("[sí] using NATS feed via %s", natsURL)
 
 	default:
-		log.Fatalf("unknown SI_FEED mode: %s (use: bus, echo)", feedMode)
+		log.Fatalf("unknown SI_FEED mode: %s (use: nats, bus, echo)", feedMode)
 	}
 
 	// Router — stateless, no history.
