@@ -16,6 +16,7 @@ type Message struct {
 	Timestamp time.Time `json:"timestamp"`
 	Stream    string    `json:"stream,omitempty"` // "delta" for streaming chunks, "done" for final, empty for non-streamed
 	StreamID  string    `json:"stream_id,omitempty"` // groups deltas with their final message
+	ClientID  string    `json:"client_id,omitempty"` // optional: originating client (set by direct-client adapters)
 
 	// Metadata from inber (omitted when zero)
 	Meta *MessageMeta `json:"meta,omitempty"`
