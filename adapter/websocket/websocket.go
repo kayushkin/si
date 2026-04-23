@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	si "github.com/kayushkin/si"
@@ -19,9 +21,14 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-// envToken returns the required bearer token for WS clients, or "" if auth is disabled.
-// Set SI_WS_TOKEN to enable. If empty, the adapter is dev-open.
+// envToken returns the required literal bearer token for WS clients, or "" if unset.
+// Legacy shared-secret auth; used by dashboards that haven't migrated to JWT.
 func envToken() string { return os.Getenv("SI_WS_TOKEN") }
+
+// envJWTSecret returns the HMAC secret used to verify bridge-issued JWTs, or ""
+// if unset. When set, si accepts JWTs minted by kayushkin.com's
+// /api/auth/bridge-token endpoint (aud="si" required).
+func envJWTSecret() string { return os.Getenv("SI_JWT_SECRET") }
 
 // wsClient is one connected WebSocket peer.
 type wsClient struct {
@@ -105,10 +112,15 @@ func (a *Adapter) Start(ctx context.Context) error {
 		close(a.incoming)
 	}()
 
-	if envToken() == "" {
-		log.Printf("[websocket] listening on %s (AUTH DISABLED — set SI_WS_TOKEN to require bearer)", a.addr)
-	} else {
-		log.Printf("[websocket] listening on %s (bearer auth required)", a.addr)
+	switch {
+	case envToken() == "" && envJWTSecret() == "":
+		log.Printf("[websocket] listening on %s (AUTH DISABLED — set SI_WS_TOKEN and/or SI_JWT_SECRET)", a.addr)
+	case envToken() != "" && envJWTSecret() != "":
+		log.Printf("[websocket] listening on %s (legacy bearer + JWT auth)", a.addr)
+	case envJWTSecret() != "":
+		log.Printf("[websocket] listening on %s (JWT auth required, aud=si)", a.addr)
+	default:
+		log.Printf("[websocket] listening on %s (legacy bearer auth required)", a.addr)
 	}
 	return srv.ListenAndServe()
 }
@@ -241,17 +253,67 @@ func (a *Adapter) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// authorize checks the bearer token if SI_WS_TOKEN is set.
+// authorize accepts either the legacy shared bearer (SI_WS_TOKEN) or a JWT
+// signed with SI_JWT_SECRET and carrying aud="si". If neither env var is set,
+// auth is disabled (dev-open).
+//
+// Accepts Authorization: Bearer <token> or ?token=<token> (for browser-only
+// dashboards). The JWT path lets android-bridge present a short-lived token
+// minted by kayushkin.com's /api/auth/bridge-token endpoint instead of
+// distributing SI_WS_TOKEN to every phone.
 func (a *Adapter) authorize(r *http.Request) bool {
-	want := envToken()
-	if want == "" {
+	legacy := envToken()
+	jwtSecret := envJWTSecret()
+	if legacy == "" && jwtSecret == "" {
 		return true
 	}
-	// Accept Authorization: Bearer <token> or ?token=<token> (for browser-only dashboards).
-	if got := r.Header.Get("Authorization"); strings.HasPrefix(got, "Bearer ") {
-		return strings.TrimPrefix(got, "Bearer ") == want
+
+	var got string
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		got = strings.TrimPrefix(h, "Bearer ")
+	} else {
+		got = r.URL.Query().Get("token")
 	}
-	return r.URL.Query().Get("token") == want
+	if got == "" {
+		return false
+	}
+
+	if legacy != "" && got == legacy {
+		return true
+	}
+	if jwtSecret != "" && verifyBridgeJWT(got, jwtSecret) {
+		return true
+	}
+	return false
+}
+
+// verifyBridgeJWT parses and validates a JWT using the shared HMAC secret.
+// Requires HS256, a valid signature, an unexpired exp claim, and aud="si".
+func verifyBridgeJWT(tokenString, secret string) bool {
+	t, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return []byte(secret), nil
+	})
+	if err != nil || !t.Valid {
+		return false
+	}
+	claims, ok := t.Claims.(jwt.MapClaims)
+	if !ok {
+		return false
+	}
+	switch aud := claims["aud"].(type) {
+	case string:
+		return aud == "si"
+	case []interface{}:
+		for _, a := range aud {
+			if s, ok := a.(string); ok && s == "si" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // handleStatus serves GET /api/status.

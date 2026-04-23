@@ -50,18 +50,17 @@ func main() {
 		if natsURL == "" {
 			natsURL = "nats://localhost:4222"
 		}
-		natsFeed := feed.NewNATSFeed(feed.NATSFeedConfig{
-			NATSURL:  natsURL,
-			Consumer: "si",
+		natsFeed, err := feed.NewNatsFeed(feed.NatsFeedConfig{
+			NatsURL: natsURL,
 		})
-		if err := natsFeed.Start(feed.NATSFeedConfig{
-			NATSURL:  natsURL,
-			Consumer: "si",
-		}); err != nil {
-			log.Fatalf("[sí] failed to connect to NATS: %v", err)
+		if err != nil {
+			log.Fatalf("[sí] failed to connect to nats: %v", err)
+		}
+		if err := natsFeed.Start(); err != nil {
+			log.Fatalf("[sí] failed to start nats feed: %v", err)
 		}
 		f = natsFeed
-		log.Printf("[sí] using NATS feed via %s", natsURL)
+		log.Printf("[sí] using nats feed via %s (bus mode)", natsURL)
 
 	default:
 		log.Fatalf("unknown SI_FEED mode: %s (use: nats, bus, echo)", feedMode)
