@@ -1,5 +1,8 @@
 si
 si-linux-amd64
+# Stray committed test binary (11MB ELF, `go test -c`-style dropping from March,
+# unstripped with debug_info). The live service runs ~/bin/si.
+/si-test
 si-chat/node_modules
 si-chat/dist
 
