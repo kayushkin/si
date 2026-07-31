@@ -1,5 +1,10 @@
-si
-si-linux-amd64
+# Build output at the repo root. The leading slash is load-bearing: a bare `si`
+# also matches the SOURCE DIRECTORY cmd/si/, hiding every file in it from
+# `git add`. cmd/si/main.go is tracked and stays tracked whatever this file
+# says, so nothing was lost — but the next file added beside it would have been
+# skipped in silence. Same trap the /si-test line below was already anchored for.
+/si
+/si-linux-amd64
 # Stray committed test binary (11MB ELF, `go test -c`-style dropping from March,
 # unstripped with debug_info). The live service runs ~/bin/si.
 /si-test
