@@ -14,3 +14,8 @@ si-chat/dist
 # inber agent-session runtime state (session/memory DBs + materialized workspace);
 # never source. Matches the canonical inber repo, which gitignores .inber/.
 .inber/
+
+# inber writes each agent session to <workspace>/logs/<agent>/<session>/ —
+# transcripts, prompts and request payloads. They stay on disk because inber's
+# session-history API reads them from there; they are not this repo's source.
+logs/
