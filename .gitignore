@@ -8,6 +8,10 @@
 # Stray committed test binary (11MB ELF, `go test -c`-style dropping from March,
 # unstripped with debug_info). The live service runs ~/bin/si.
 /si-test
+# deploy.sh stages the binary here before installing it to ~/bin/si. Anchored
+# like the lines above, and not optional: deploy.sh refuses a dirty tree, so an
+# unignored build/ would let the first deploy succeed and block every one after.
+/build/
 si-chat/node_modules
 si-chat/dist
 

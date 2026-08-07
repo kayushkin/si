@@ -1,15 +1,32 @@
 [Unit]
-Description=Si communication layer for inber
-After=network.target
+Description=Sí — communications layer routing messages between platforms and inber feeds
+# nats.service is not decoration: SI_FEED=nats makes cmd/si/main.go call
+# feed.NewNatsFeed, which log.Fatalf's if it cannot connect. With Restart=always
+# below, a si started before NATS is up does not wait — it dies and loops.
+# logstack.service is softer: si probes it once and disables logging if it is
+# absent (logstack.go NewLogstackClient), so a missing logstack costs history,
+# not the service.
+After=network.target nats.service logstack.service
 
 [Service]
 Type=simple
-User=slava
-WorkingDirectory=/home/slava/repos/si
-Environment=SI_FEED=inber
-Environment=SI_WS_ADDR=:8090
-ExecStart=/home/slava/repos/si/si
-Restart=on-failure
+# %h, not the repo checkout. si reads nothing relative to its cwd — every path
+# and address it uses comes from the environment below — and a WorkingDirectory
+# that can stop existing is a live failure class on this host: systemd fails the
+# start with an opaque 200/CHDIR and Restart= loops on it forever.
+WorkingDirectory=%h
+# nats | bus | echo. Anything else is log.Fatalf at boot, so this value is
+# load-bearing and must not be guessed at. This file used to say `inber`, which
+# has never been one of the three.
+Environment=SI_FEED=nats
+Environment=NATS_URL=nats://localhost:4222
+# Loopback deliberately. /ws carries chat and authenticates only when SI_WS_TOKEN
+# or SI_JWT_SECRET is set (adapter/websocket/websocket.go); neither is set here,
+# so a wildcard bind would serve the feed to the network unauthenticated.
+Environment=SI_WS_ADDR=127.0.0.1:8090
+Environment=LOGSTACK_URL=http://127.0.0.1:8088
+ExecStart=%h/bin/si
+Restart=always
 RestartSec=5
 
 [Install]
