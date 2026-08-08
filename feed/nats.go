@@ -10,6 +10,7 @@ import (
 	"github.com/kayushkin/bus"
 	"github.com/kayushkin/bus/messages"
 	si "github.com/kayushkin/si"
+	"github.com/kayushkin/si/internal/logtext"
 )
 
 // NatsFeed connects si to NATS as a stateless protocol adapter.
@@ -144,7 +145,7 @@ func (f *NatsFeed) Start() error {
 			}
 		}
 
-		log.Printf("[feed/nats] ← outbound [%s] %s", out.Agent, truncateNats(out.Text, 50))
+		log.Printf("[feed/nats] ← outbound [%s] %s", out.Agent, logtext.TruncateAtRuneBoundaryWithEllipsis(out.Text, 50))
 		f.inbound <- msg
 	})
 	if err != nil {
@@ -198,7 +199,7 @@ func (f *NatsFeed) publishLoop() {
 			}
 
 			log.Printf("[feed/nats] → %s [%s] %s: %s",
-				subject, msg.Channel, msg.Author, truncateNats(msg.Text, 50))
+				subject, msg.Channel, msg.Author, logtext.TruncateAtRuneBoundaryWithEllipsis(msg.Text, 50))
 		}
 	}
 }
@@ -220,11 +221,4 @@ func (f *NatsFeed) Close() error {
 	f.cancel()
 	f.client.Close()
 	return nil
-}
-
-func truncateNats(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
 }

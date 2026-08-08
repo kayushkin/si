@@ -6,6 +6,8 @@ import (
 	"log"
 	"strings"
 	"sync"
+
+	"github.com/kayushkin/si/internal/logtext"
 )
 
 // Feed is the interface for reading/writing to the message bus.
@@ -127,7 +129,7 @@ func (r *Router) Run(ctx context.Context) error {
 					if !ok {
 						return
 					}
-					log.Printf("[router] %s → bus: %s", a.Name(), truncate(msg.Text, 80))
+					log.Printf("[router] %s → bus: %s", a.Name(), logtext.TruncateAtRuneBoundaryWithEllipsis(msg.Text, 80))
 					r.publish(Event{Type: EventInbound, Message: msg})
 					if err := r.feed.Write(msg); err != nil {
 						log.Printf("[router] feed write error: %v", err)
@@ -173,11 +175,4 @@ func matchAdapter(channel, adapterName string) bool {
 		return true
 	}
 	return channel == adapterName || strings.HasPrefix(channel, adapterName+":")
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
 }
