@@ -12,6 +12,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	si "github.com/kayushkin/si"
+	"github.com/kayushkin/si/internal/logtext"
 )
 
 // BusFeed connects si to the message bus as a stateless protocol adapter.
@@ -117,7 +118,7 @@ func (f *BusFeed) publishLoop() {
 			resp.Body.Close()
 
 			log.Printf("[feed/bus] → inbound [%s] %s: %s",
-				msg.Channel, msg.Author, truncateBus(msg.Text, 50))
+				msg.Channel, msg.Author, logtext.TruncateAtRuneBoundaryWithEllipsis(msg.Text, 50))
 		}
 	}
 }
@@ -197,7 +198,7 @@ func (f *BusFeed) subscribe() error {
 			continue
 		}
 
-		log.Printf("[feed/bus] ← outbound [%s] %s", msg.Channel, truncateBus(msg.Text, 50))
+		log.Printf("[feed/bus] ← outbound [%s] %s", msg.Channel, logtext.TruncateAtRuneBoundaryWithEllipsis(msg.Text, 50))
 		f.inbound <- msg
 
 		go f.ack(busMsg.Topic, busMsg.ID)
@@ -218,11 +219,4 @@ func (f *BusFeed) ack(topic string, id int64) {
 		return
 	}
 	resp.Body.Close()
-}
-
-func truncateBus(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
 }
