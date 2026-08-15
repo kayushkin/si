@@ -110,6 +110,27 @@ go build -o "$STAGED" ./cmd/si || fail "building ./cmd/si failed"
 [ -x "$STAGED" ] || fail "no executable produced at $STAGED"
 echo "    built: $(ls -lh "$STAGED" | awk '{print $5}')"
 
+# Checked BEFORE the install, for the same reason the smoke is: an unidentifiable
+# binary compiles perfectly and reads clean in the log, so installing first would put
+# it in front of live sessions and only then tell us it cannot be traced to a commit.
+echo "==> Checking provenance..."
+buildinfo="$(go version -m "$STAGED")"
+vcs_revision="$(printf '%s\n' "$buildinfo" | awk -F= '$1 ~ /[[:space:]]vcs\.revision$/ {print $2}')"
+vcs_modified="$(printf '%s\n' "$buildinfo" | awk -F= '$1 ~ /[[:space:]]vcs\.modified$/ {print $2}')"
+if [ -z "$vcs_revision" ]; then
+    echo "    'go build' writes no VCS stamp when it cannot find a .git DIRECTORY, and it does" >&2
+    echo "    not fail when that happens -- not even with -buildvcs=true. The usual cause is" >&2
+    echo "    building from a git worktree, whose .git is a pointer file. Build from a real" >&2
+    echo "    clone or checkout instead." >&2
+    fail "refusing to install $STAGED: no vcs.revision, so nothing ties it back to a commit"
+fi
+echo "    vcs.revision=$vcs_revision"
+if [ "$vcs_modified" = "true" ]; then
+    echo "    WARNING: built from a DIRTY tree (vcs.modified=true). $vcs_revision names the" >&2
+    echo "    commit this binary was built NEAR, not the source it was built FROM, and that" >&2
+    echo "    source is not recoverable from any commit. Commit first for a reproducible build." >&2
+fi
+
 step "boot-and-answer smoke, before touching the live service"
 # `go build` passing says the tree compiles, not that the binary is alive, and
 # si's headline failure mode is silent: router.Run only LOGS an adapter that
