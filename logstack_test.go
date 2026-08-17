@@ -13,8 +13,11 @@ import (
 // text, the "events" channel, and nothing else. The router then hands it to
 // publish() as EventOutbound, because outbound is its direction of travel.
 //
-// It is the fixture that matters most here: 138,441 of the 145,813 entries si
-// has filed as outbound are this shape.
+// It is the fixture that matters most here: as of 2026-08-17, 139,728 of the
+// 147,204 entries si has filed as outbound are this shape -- 94.9%, and it
+// read 138,441 of 145,813 for the same 94.9% when this was written. The
+// share is the stable fact; the two absolutes only track how long the box
+// has been running, so they are dated rather than corrected.
 func healthcheckEvent() Event {
 	return Event{
 		Type: EventOutbound,
