@@ -58,12 +58,17 @@ func NewLogstackClient() *LogstackClient {
 // subscription and feed/bus.go's "events" topic) as ordinary messages on the
 // "events" channel with no agent, no author and no orchestrator; the router
 // then routes them feed → adapters, which is EventOutbound. Replaying the live
-// store through this function: of the 145,813 entries si has filed as outbound,
-// 138,441 are that shape — 94.9% of the bucket — and they still arrive at
-// roughly one a minute. The other 7,372 are real turns and keep their bucket. They carry no tokens, so they add no
-// dollars, but every one of them is a row the usage readers scan and a row any
-// reader that counts entries rather than tokens will count. MaxUsage derives
-// api_calls exactly that way.
+// store through this function: about 95% of everything si has filed as outbound
+// is that shape, and it still arrives on its own schedule. The share is the
+// durable fact and the bucket totals are the rotting part — 94.9% when this was
+// written, 95.0% on 2026-08-17, over a bucket that grew by 1,288 entries in
+// between — so re-take it rather than trust a total. Count the entries under
+// logstack's LOGSTACK_DATA_DIR whose content carries author and message_id and
+// whose type is "outbound", then split them on si's own speakerOf rule. The
+// rest are real turns and keep their bucket. Plumbing carries no tokens, so it
+// adds no dollars, but every entry is a row the usage readers scan and a row
+// any reader that counts entries rather than tokens will count. MaxUsage
+// derives api_calls exactly that way.
 //
 // So a routed message earns an inbound/outbound bucket only when it names who
 // spoke. That is the same rule logstack already enforces on its own NATS
