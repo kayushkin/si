@@ -7,8 +7,10 @@
 # logstack's models.TypeOutbound means "a completed agent turn", and it is the
 # only type its usage readers select. si used to copy its own string straight
 # into logstack's field, so every republished healthcheck status change — no
-# agent, no author, no orchestrator — was filed as a billable turn. 138,441 of
-# si's 145,813 outbound entries are that shape.
+# agent, no author, no orchestrator — was filed as a billable turn. That is
+# about 95% of si's whole outbound bucket. The count behind that share is dated
+# and stated once, in logstack.go's entryType — restating it here is how the two
+# copies drifted apart before.
 #
 # `go test ./...` already pins entryType()'s mapping. What it cannot see is
 # WHICH BINARY IS LIVE, and that is the only thing in question here: the fix was
