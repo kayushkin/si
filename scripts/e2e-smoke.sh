@@ -35,7 +35,8 @@
 # in-process goroutine with no sockets at all. NATS_URL is never even read.
 #
 # LOGSTACK_URL is pointed at a CLOSED port, not left at its default: NewRouter
-# does a synchronous health GET with a 2s timeout (logstack.go:44), so the default
+# does a synchronous health GET with a 2s timeout (logstack.go, the probe in
+# NewLogstackClient), so the default
 # would either reach the live logstack or stall boot for two seconds. A closed
 # port gives an instant ECONNREFUSED and si disables logging and moves on.
 #
