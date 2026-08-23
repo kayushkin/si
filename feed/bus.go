@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	neturl "net/url"
 	"strings"
 	"time"
 
@@ -108,8 +109,8 @@ func (f *BusFeed) publishLoop() {
 			}
 			data, _ := json.Marshal(body)
 
-			url := f.busURL + "/publish?token=" + f.token
-			resp, err := f.http.Post(url, "application/json", bytes.NewReader(data))
+			publishURL := f.busURL + "/publish?" + neturl.Values{"token": {f.token}}.Encode()
+			resp, err := f.http.Post(publishURL, "application/json", bytes.NewReader(data))
 			if err != nil {
 				log.Printf("[feed/bus] publish error: %v", err)
 				continue
@@ -144,10 +145,13 @@ func (f *BusFeed) subscribeLoop() {
 }
 
 func (f *BusFeed) subscribe() error {
-	url := fmt.Sprintf("%s/subscribe?consumer=%s&topics=outbound,events,gateway&token=%s",
-		f.wsURL, f.consumer, f.token)
+	subscribeURL := f.wsURL + "/subscribe?" + neturl.Values{
+		"consumer": {f.consumer},
+		"topics":   {"outbound,events,gateway"},
+		"token":    {f.token},
+	}.Encode()
 
-	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	conn, _, err := websocket.DefaultDialer.Dial(subscribeURL, nil)
 	if err != nil {
 		return err
 	}
@@ -211,8 +215,8 @@ func (f *BusFeed) ack(topic string, id int64) {
 		"message_id": id,
 	}
 	data, _ := json.Marshal(body)
-	url := f.busURL + "/ack?token=" + f.token
-	resp, err := f.http.Post(url, "application/json", bytes.NewReader(data))
+	acknowledgeURL := f.busURL + "/ack?" + neturl.Values{"token": {f.token}}.Encode()
+	resp, err := f.http.Post(acknowledgeURL, "application/json", bytes.NewReader(data))
 	if err != nil {
 		log.Printf("[feed/bus] ack error: %v", err)
 		return
