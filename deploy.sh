@@ -22,6 +22,11 @@
 #   SI_DEPLOY_VERIFY_SECS=N   how long to wait for plumbing traffic (default 120)
 set -euo pipefail
 
+# One shared gate decides whether this tree may be deployed (main clone, default
+# branch, clean, pushed, not behind, and the same for every tree the build reads).
+# It lives in healthcheck/scripts/deploy-gate.sh. Do not inline or copy it.
+( cd "$(dirname "$0")" && "$HOME/bin/deploy-gate" check )
+
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 UNIT_SRC="$REPO_DIR/si.service"
 UNIT_DIR="$HOME/.config/systemd/user"
@@ -190,3 +195,6 @@ esac
 
 printf '\n==> DEPLOYED — si %s is live on %s\n' "$COMMIT" "$BASE"
 echo "    rollback: cp $BACKUP_DIR/si.prev $BIN_PATH && systemctl --user restart $UNIT_NAME"
+
+# Last act: write this deploy to repo-store's ledger, so the next agent sees what is live.
+( cd "$(dirname "$0")" && "$HOME/bin/deploy-gate" record )
