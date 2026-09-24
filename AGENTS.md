@@ -2,7 +2,7 @@
 
 ## What it owns
 
-Communications layer routing messages between external platforms and inber I/O feeds. Adapters for matterbridge (Discord, Telegram, Slack), WebSocket, and TUI. Listens on `:8090`. ⚠️ No matterbridge process or unit runs on this host (measured 2026-09-18), so the matterbridge adapter has nothing to talk to.
+Communications layer routing messages between external platforms and inber I/O feeds. Adapters for matterbridge (Discord, Telegram, Slack), WebSocket, and TUI. Listens on `:8090` (`SI_WS_ADDR`; the unit binds loopback). Every environment variable it reads is declared in `internal/config/settings.go` and served at `GET /settings`; a new `os.Getenv` fails `TestEveryEnvironmentVariableTheServiceReadsIsDeclared` until it is declared there. ⚠️ No matterbridge process or unit runs on this host (measured 2026-09-18), so the matterbridge adapter has nothing to talk to.
 
 ## Where this prompt lives
 

@@ -6,21 +6,25 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/kayushkin/llm-bridge/servicesettings"
 	si "github.com/kayushkin/si"
 	"github.com/kayushkin/si/adapter/discord"
 	"github.com/kayushkin/si/adapter/websocket"
 	"github.com/kayushkin/si/feed"
+	"github.com/kayushkin/si/internal/config"
 )
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	// SI_FEED=nats (default), bus (legacy), or echo (test).
-	feedMode := os.Getenv("SI_FEED")
-	if feedMode == "" {
-		feedMode = "nats"
+	settings, err := config.NewSettingsRegistry(servicesettings.ProcessEnvironment())
+	if err != nil {
+		log.Fatalf("[sí] %v", err)
 	}
+
+	// SI_FEED=nats (default), bus (legacy), or echo (test).
+	feedMode := settings.String(config.SettingFeedMode)
 
 	var f si.Feed
 	switch feedMode {
@@ -29,10 +33,7 @@ func main() {
 		f = feed.NewEcho()
 
 	case "nats":
-		natsURL := os.Getenv("NATS_URL")
-		if natsURL == "" {
-			natsURL = "nats://localhost:4222"
-		}
+		natsURL := settings.String(config.SettingNATSURL)
 		natsFeed, err := feed.NewNatsFeed(feed.NatsFeedConfig{
 			NatsURL: natsURL,
 		})
@@ -46,10 +47,7 @@ func main() {
 		log.Printf("[sí] using nats feed via %s", natsURL)
 
 	case "bus":
-		natsURL := os.Getenv("NATS_URL")
-		if natsURL == "" {
-			natsURL = "nats://localhost:4222"
-		}
+		natsURL := settings.String(config.SettingNATSURL)
 		natsFeed, err := feed.NewNatsFeed(feed.NatsFeedConfig{
 			NatsURL: natsURL,
 		})
@@ -67,24 +65,20 @@ func main() {
 	}
 
 	// Router — stateless, no history.
-	router := si.NewRouter(f)
+	router := si.NewRouter(f, settings.String(config.SettingLogstackURL))
 
 	// WebSocket adapter (dashboard, Claxon Android).
-	wsAddr := os.Getenv("SI_WS_ADDR")
-	if wsAddr == "" {
-		wsAddr = ":8090"
-	}
-	wsAdapter := websocket.New(wsAddr)
+	wsAdapter := websocket.New(settings.String(config.SettingWebSocketListenAddress), websocket.Credentials{
+		LegacyBearerToken: settings.String(config.SettingWebSocketBearerToken),
+		JWTSecret:         settings.String(config.SettingWebSocketJWTSecret),
+	})
 	wsAdapter.SetRouter(router)
+	wsAdapter.SetSettingsHandler(servicesettings.Handler(settings, "/settings"))
 	router.AddAdapter(wsAdapter)
 
 	// Discord adapter (if token provided).
-	if token := os.Getenv("SI_DISCORD_TOKEN"); token != "" {
-		channelID := os.Getenv("SI_DISCORD_CHANNEL")
-		if channelID == "" {
-			channelID = "143132977210195968" // default: Pretend server
-		}
-		discordAdapter := discord.New(token, channelID)
+	if token := settings.String(config.SettingDiscordBotToken); token != "" {
+		discordAdapter := discord.New(token, settings.String(config.SettingDiscordChannelID))
 		router.AddAdapter(discordAdapter)
 	}
 

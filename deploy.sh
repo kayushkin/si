@@ -126,6 +126,18 @@ step "boot-and-answer smoke, before touching the live service"
 ./scripts/e2e-smoke.sh >/dev/null || fail "e2e smoke failed — not installing. Run ./scripts/e2e-smoke.sh to see why."
 echo "    smoke passed (si boots, listens, round-trips)"
 
+step "the new binary accepts the running service's environment"
+# A set SI_ variable the declarations do not name stops the new binary at boot,
+# and Restart=always would then loop it. Build the registry from the running
+# service's own environment first. The test prints a verdict, never a value.
+LIVE_PID="$(systemctl --user show -p MainPID --value "$UNIT_NAME")"
+if [ -n "$LIVE_PID" ] && [ "$LIVE_PID" != "0" ]; then
+  go test -count=1 -run '^TestTheLiveProcessEnvironmentBuildsARegistry$' ./internal/config -args -live-environment-file="/proc/$LIVE_PID/environ" \
+    || fail "the new binary would refuse the running service's environment — not installing"
+else
+  echo "    $UNIT_NAME is not running, so there is no environment to check"
+fi
+
 step "baseline the log store, before the restart"
 # Taken now so the post-restart check can tell entries the NEW binary wrote from
 # entries the old one already had on disk.

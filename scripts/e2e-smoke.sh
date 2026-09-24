@@ -20,7 +20,7 @@
 # as a failure, independently of whether the process survived.
 #
 # WHAT MAKES THIS HERMETIC — SI_FEED=echo, AND WHY IT IS NOT NEGOTIABLE:
-# si's default feed is NATS (cmd/si/main.go:20), and pointing this smoke at the
+# si's default feed is NATS (SettingFeedMode in internal/config/settings.go), and pointing this smoke at the
 # live bus would be far worse than merely noisy:
 #   * feed/nats.go:121 opens a JetStream push consumer with the DURABLE NAME
 #     "si" — the same durable the live si uses. A second binder either fails
@@ -31,16 +31,16 @@
 #   * feed/nats.go:180-195 publishes every message a WS client sends to
 #     chat.inbound.<orchestrator> — so a smoke's test message would be injected
 #     into the live orchestrators as a real user prompt.
-# SI_FEED=echo (main.go:28-29) bypasses NATS entirely: feed.NewEcho() is an
+# SI_FEED=echo (the "echo" case in cmd/si/main.go) bypasses NATS entirely: feed.NewEcho() is an
 # in-process goroutine with no sockets at all. NATS_URL is never even read.
 #
 # LOGSTACK_URL is pointed at a CLOSED port, not left at its default: NewRouter
-# does a synchronous health GET with a 2s timeout (logstack.go:44), so the default
+# does a synchronous health GET with a 2s timeout (NewLogstackClient in logstack.go), so the default
 # would either reach the live logstack or stall boot for two seconds. A closed
 # port gives an instant ECONNREFUSED and si disables logging and moves on.
 #
-# si has NO /health route. It serves exactly /ws and /api/status
-# (adapter/websocket/websocket.go:86-87). /api/status is the readiness probe.
+# si has NO /health route. It serves /ws, /api/status and GET /settings
+# (routes in adapter/websocket/websocket.go). /api/status is the readiness probe.
 #
 # Exits 0 on success, non-zero on the FIRST failing assertion, dumping the
 # server log to stderr.

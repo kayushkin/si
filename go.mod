@@ -12,11 +12,11 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/kayushkin/bus v0.0.0-20260321234814-6d7d8f0ba371
+	github.com/kayushkin/llm-bridge v0.0.0-00010101000000-000000000000
 	github.com/kayushkin/logstack v0.0.0-20260801142810-d1430087ac3e
 )
 
 require (
-	github.com/kayushkin/llm-bridge v0.0.0-00010101000000-000000000000 // indirect
 	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/nats-io/nats.go v1.49.0 // indirect
 	github.com/nats-io/nkeys v0.4.12 // indirect

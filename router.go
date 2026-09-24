@@ -30,12 +30,13 @@ type Router struct {
 	logstack *LogstackClient
 }
 
-// NewRouter creates a router connected to the given feed.
-func NewRouter(feed Feed) *Router {
+// NewRouter creates a router connected to the given feed, writing every routed
+// message to the logstack at logstackURL.
+func NewRouter(feed Feed, logstackURL string) *Router {
 	return &Router{
 		feed:        feed,
 		subscribers: make(map[chan Event]bool),
-		logstack:    NewLogstackClient(),
+		logstack:    NewLogstackClient(logstackURL),
 	}
 }
 

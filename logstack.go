@@ -3,7 +3,6 @@ package si
 import (
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,14 +17,9 @@ type LogstackClient struct {
 	client  *logstackclient.Client
 }
 
-// NewLogstackClient creates a client. Uses LOGSTACK_URL env (default http://localhost:8088).
-// Does a quick health check; disables itself if logstack is unreachable.
-func NewLogstackClient() *LogstackClient {
-	url := os.Getenv("LOGSTACK_URL")
-	if url == "" {
-		url = "http://localhost:8088"
-	}
-
+// NewLogstackClient creates a client for the logstack at url. It does a quick
+// health check and disables itself if logstack is unreachable.
+func NewLogstackClient(url string) *LogstackClient {
 	enabled := true
 	probe := &http.Client{Timeout: 2 * time.Second}
 	resp, err := probe.Get(url + "/api/v1/health")

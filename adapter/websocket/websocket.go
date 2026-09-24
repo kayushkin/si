@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -21,14 +20,16 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-// envToken returns the required literal bearer token for WS clients, or "" if unset.
-// Legacy shared-secret auth; used by dashboards that haven't migrated to JWT.
-func envToken() string { return os.Getenv("SI_WS_TOKEN") }
-
-// envJWTSecret returns the HMAC secret used to verify bridge-issued JWTs, or ""
-// if unset. When set, si accepts JWTs minted by kayushkin.com's
-// /api/auth/bridge-token endpoint (aud="si" required).
-func envJWTSecret() string { return os.Getenv("SI_JWT_SECRET") }
+// Credentials are the two secrets a websocket client may present. Either may be
+// empty; with both empty, every route accepts anyone.
+type Credentials struct {
+	// LegacyBearerToken is a literal shared bearer token (SI_WS_TOKEN), used by
+	// dashboards that have not moved to JWTs.
+	LegacyBearerToken string
+	// JWTSecret verifies JWTs minted by kayushkin.com's /api/auth/bridge-token
+	// endpoint (SI_JWT_SECRET); aud="si" is required.
+	JWTSecret string
+}
 
 // wsClient is one connected WebSocket peer.
 type wsClient struct {
@@ -55,38 +56,53 @@ func (c *wsClient) write(data []byte) error {
 //
 // Auth: if SI_WS_TOKEN is set, requires Authorization: Bearer <token> on the upgrade request.
 type Adapter struct {
-	addr     string
-	incoming chan si.Message
-	clients  map[*wsClient]struct{}
-	byID     map[string]*wsClient // clientID → client (most recent connection for that id)
-	inflight map[string]string    // message_id → client_id (pending reply)
-	mu       sync.RWMutex
-	router   *si.Router
+	addr        string
+	credentials Credentials
+	settings    http.Handler
+	incoming    chan si.Message
+	clients     map[*wsClient]struct{}
+	byID        map[string]*wsClient // clientID → client (most recent connection for that id)
+	inflight    map[string]string    // message_id → client_id (pending reply)
+	mu          sync.RWMutex
+	router      *si.Router
 }
 
-// New creates a WebSocket adapter listening on addr (e.g. ":8090").
-func New(addr string) *Adapter {
+// New creates a WebSocket adapter listening on addr (e.g. ":8090") that admits
+// clients presenting one of credentials.
+func New(addr string, credentials Credentials) *Adapter {
 	return &Adapter{
-		addr:     addr,
-		incoming: make(chan si.Message, 64),
-		clients:  make(map[*wsClient]struct{}),
-		byID:     make(map[string]*wsClient),
-		inflight: make(map[string]string),
+		addr:        addr,
+		credentials: credentials,
+		incoming:    make(chan si.Message, 64),
+		clients:     make(map[*wsClient]struct{}),
+		byID:        make(map[string]*wsClient),
+		inflight:    make(map[string]string),
 	}
 }
 
 // SetRouter gives the adapter access to the router for the event bus.
 func (a *Adapter) SetRouter(r *si.Router) { a.router = r }
 
+// SetSettingsHandler serves settings at GET /settings, behind the same gate as
+// /ws. Call it before Start.
+func (a *Adapter) SetSettingsHandler(settings http.Handler) { a.settings = settings }
+
 func (a *Adapter) Name() string { return "websocket" }
 
-// Start runs the WebSocket server.
-func (a *Adapter) Start(ctx context.Context) error {
+// routes is every route the adapter serves.
+func (a *Adapter) routes() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", a.handleWS)
 	mux.HandleFunc("/api/status", a.handleStatus)
+	if a.settings != nil {
+		mux.HandleFunc("GET /settings", a.handleSettings)
+	}
+	return mux
+}
 
-	srv := &http.Server{Addr: a.addr, Handler: mux}
+// Start runs the WebSocket server.
+func (a *Adapter) Start(ctx context.Context) error {
+	srv := &http.Server{Addr: a.addr, Handler: a.routes()}
 
 	if a.router != nil {
 		events := a.router.Subscribe()
@@ -113,11 +129,11 @@ func (a *Adapter) Start(ctx context.Context) error {
 	}()
 
 	switch {
-	case envToken() == "" && envJWTSecret() == "":
+	case a.credentials.LegacyBearerToken == "" && a.credentials.JWTSecret == "":
 		log.Printf("[websocket] listening on %s (AUTH DISABLED — set SI_WS_TOKEN and/or SI_JWT_SECRET)", a.addr)
-	case envToken() != "" && envJWTSecret() != "":
+	case a.credentials.LegacyBearerToken != "" && a.credentials.JWTSecret != "":
 		log.Printf("[websocket] listening on %s (legacy bearer + JWT auth)", a.addr)
-	case envJWTSecret() != "":
+	case a.credentials.JWTSecret != "":
 		log.Printf("[websocket] listening on %s (JWT auth required, aud=si)", a.addr)
 	default:
 		log.Printf("[websocket] listening on %s (legacy bearer auth required)", a.addr)
@@ -175,6 +191,14 @@ func (a *Adapter) routeEvent(e si.Event) {
 			}
 		}
 	}
+}
+
+func (a *Adapter) handleSettings(w http.ResponseWriter, r *http.Request) {
+	if !a.authorize(r) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	a.settings.ServeHTTP(w, r)
 }
 
 func (a *Adapter) handleWS(w http.ResponseWriter, r *http.Request) {
@@ -254,16 +278,16 @@ func (a *Adapter) handleWS(w http.ResponseWriter, r *http.Request) {
 }
 
 // authorize accepts either the legacy shared bearer (SI_WS_TOKEN) or a JWT
-// signed with SI_JWT_SECRET and carrying aud="si". If neither env var is set,
-// auth is disabled (dev-open).
+// signed with SI_JWT_SECRET and carrying aud="si". If neither is set, auth is
+// disabled (dev-open).
 //
 // Accepts Authorization: Bearer <token> or ?token=<token> (for browser-only
 // dashboards). The JWT path lets android-bridge present a short-lived token
 // minted by kayushkin.com's /api/auth/bridge-token endpoint instead of
 // distributing SI_WS_TOKEN to every phone.
 func (a *Adapter) authorize(r *http.Request) bool {
-	legacy := envToken()
-	jwtSecret := envJWTSecret()
+	legacy := a.credentials.LegacyBearerToken
+	jwtSecret := a.credentials.JWTSecret
 	if legacy == "" && jwtSecret == "" {
 		return true
 	}
