@@ -99,8 +99,8 @@ COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo '(no git)')"
 echo "    deploying $COMMIT from a clean tree"
 
 step "build, vet, test"
-# No gofmt gate: adapter/openclaw/openclaw.go and message.go are gofmt-dirty at
-# HEAD and have been deliberately left that way. A gate here would block every
+# No gofmt gate: message.go is gofmt-dirty at HEAD and has been deliberately
+# left that way. A gate here would block every
 # deploy on a condition this script is not the right place to fix.
 go build ./... || fail "go build failed"
 go vet ./...   || fail "go vet failed"
