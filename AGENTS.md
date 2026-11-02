@@ -14,4 +14,4 @@ These sections are stored in agent-store as a project prompt collection and rend
 
 ## Dead code
 
-`adapter/openclaw` is wired nowhere in `cmd/si/main.go`; the openclaw harness it served is retired. `feed/inber_direct_deprecated.go.bak` is the old direct inber feed, kept only as a file.
+`feed/inber_direct_deprecated.go.bak` is the old direct inber feed, kept only as a file.
