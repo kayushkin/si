@@ -49,7 +49,7 @@ const (
 // would change a description and not the running service.
 func SettingDefinitions() []servicesettings.Definition {
 	return []servicesettings.Definition{
-		{Key: SettingFeedMode, EnvironmentVariable: "SI_FEED", Kind: msg.ServiceSettingKindBehaviour, ValueType: msg.ServiceSettingValueTypeString, Default: "nats",
+		{Key: SettingFeedMode, EnvironmentVariable: "SI_FEED", Kind: msg.ServiceSettingKindBehavior, ValueType: msg.ServiceSettingValueTypeString, Default: "nats",
 			Description: "Where messages to and from agents travel: nats (the bus), bus (the same NATS feed under its old name) or echo (an in-process loop for tests, which reaches no agent). Any other value stops si at start."},
 		{Key: SettingNATSURL, EnvironmentVariable: "NATS_URL", Kind: msg.ServiceSettingKindWiring, ValueType: msg.ServiceSettingValueTypeString, Default: "nats://localhost:4222",
 			Description: "The NATS server the nats and bus feeds connect to. Changing it moves every agent conversation si carries to that server; si stops at start if it cannot connect. The echo feed does not read it."},
