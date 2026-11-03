@@ -101,7 +101,7 @@ func (r *Router) Adapters() []Adapter {
 }
 
 // Run starts all adapters and begins routing messages.
-// Blocks until ctx is cancelled.
+// Blocks until ctx is canceled.
 func (r *Router) Run(ctx context.Context) error {
 	r.mu.RLock()
 	adapters := make([]Adapter, len(r.adapters))

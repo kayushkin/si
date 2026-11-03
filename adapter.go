@@ -8,7 +8,7 @@ type Adapter interface {
 	// Name returns the adapter identifier (e.g. "matterbridge", "tui", "websocket").
 	Name() string
 
-	// Start begins the adapter's event loop. Blocks until ctx is cancelled.
+	// Start begins the adapter's event loop. Blocks until ctx is canceled.
 	Start(ctx context.Context) error
 
 	// Send delivers a message to the external platform.

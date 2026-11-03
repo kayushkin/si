@@ -18,7 +18,7 @@ import "unicode/utf8"
 // before they were merged here. That arithmetic is deliberately unchanged —
 // whether an ellipsis belongs inside the byte budget is an open question for
 // the fleet, and settling it here would hide the rune fix inside a second
-// behaviour change.
+// behavior change.
 //
 // The defect this fixes: cutting a Go string at a fixed byte offset splits
 // whatever rune straddles that offset, and the result is not valid UTF-8.
@@ -41,7 +41,7 @@ func TruncateAtRuneBoundaryWithEllipsis(s string, maxBytes int) string {
 		// byte cut this replaced panicked here instead, and no scan for the
 		// rune defect can see that: in source, a panic and a split rune are the
 		// same expression. No caller in si passes a negative budget — all six
-		// pass a positive literal — so this is a guard, not a behaviour change.
+		// pass a positive literal — so this is a guard, not a behavior change.
 		cut = 0
 	}
 	for cut > 0 && !utf8.RuneStart(s[cut]) {

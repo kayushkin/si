@@ -72,7 +72,7 @@ func TestHumanMessageKeepsItsDirection(t *testing.T) {
 }
 
 // EventGateway is si's own word and logstack has never had a type by that name,
-// so a gateway event used to be filed under a string no reader recognises.
+// so a gateway event used to be filed under a string no reader recognizes.
 func TestGatewayEventUsesAKnownType(t *testing.T) {
 	e := Event{Type: EventGateway, Message: Message{
 		Text:      "session started",

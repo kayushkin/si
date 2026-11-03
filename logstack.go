@@ -42,7 +42,7 @@ func NewLogstackClient(url string) *LogstackClient {
 //
 // These are two different vocabularies that happen to share a word. si's
 // EventType is a *routing direction* — EventOutbound means the message
-// travelled feed → adapters, whatever the message was. logstack's
+// traveled feed → adapters, whatever the message was. logstack's
 // models.TypeOutbound means *a completed agent turn*, and it is the only type
 // its usage readers select: Usage and MaxUsage query TypeOutbound and nothing
 // else, so everything filed under it is read as billable conversation.
